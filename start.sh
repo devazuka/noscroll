@@ -1,3 +1,3 @@
 #!/bin/sh
 
-bun run noscroll.js
+/root/.bun/bin/bun run noscroll.js
