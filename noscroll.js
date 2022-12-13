@@ -142,7 +142,7 @@ for (const [sub, { threshold, interval }] of Object.entries({
   setTimeout(update, interval * Math.random())
 }
 
-const server = { port: 3000 }
+const server = { port: Bun.env.PORT }
 
 // TODO: handle "cache"
 const init = { headers: { 'content-type': 'text/html' } }
