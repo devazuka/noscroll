@@ -1,9 +1,9 @@
-import { Database } from "bun:sqlite";
+import { Database } from 'bun:sqlite'
 
 const M = 1000*60
 const H = 60*M
 
-const db = new Database("data.sqlite");
+const db = new Database('entries.sqlite')
 db.run(
   `CREATE TABLE IF NOT EXISTS entry (
     id TEXT PRIMARY KEY, -- id (ex: h:33912060, r:zjxusx)
