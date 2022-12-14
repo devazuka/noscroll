@@ -4,24 +4,40 @@ const M = 1000*60
 const H = 60*M
 
 const db = new Database('entries.sqlite')
-db.run(
-  `CREATE TABLE IF NOT EXISTS entry (
-    id TEXT PRIMARY KEY, -- id (ex: h:33912060, r:zjxusx)
-    content TEXT NOT NULL, -- variable depend on type
-    title TEXT NOT NULL,
-    source TEXT NOT NULL, -- subreddit | hackernews
-    type TEXT NOT NULL CHECK(type IN ('image', 'video', 'link', 'text')),
-    image TEXT, -- image url
-    score INTEGER, -- metric count (upvotes ?)
-    at INTEGER -- timestamp of the created time
-  )`,
-)
+db.run(`
+CREATE TABLE IF NOT EXISTS entry (
+  id TEXT PRIMARY KEY, -- id (ex: h:33912060, r:zjxusx)
+  content TEXT NOT NULL, -- variable depend on type
+  title TEXT NOT NULL,
+  source TEXT NOT NULL, -- subreddit | hackernews
+  type TEXT NOT NULL CHECK(type IN ('image', 'video', 'link', 'text')),
+  image TEXT, -- image url
+  score INTEGER, -- metric count (upvotes ?)
+  at INTEGER -- timestamp of the created time
+)`)
 
-// populate previous entries
-const entries = {}
-for (const entry of db.query(`SELECT rowid AS i, * FROM entry`).all()) {
-  entries[entry.id] = entry
-}
+const get = q => q.get.bind(q)
+const all = q => q.all.bind(q)
+const getById = get(db.query(`SELECT id FROM entry WHERE id = ? LIMIT 1`))
+const getLastId = get(db.query(`
+  SELECT id
+  FROM entry
+  ORDER BY rowid DESC
+  LIMIT 25, 1`))
+
+const getRowIdOf = get(db.query(`
+  SELECT rowid
+  FROM entry
+  WHERE id = ?
+  LIMIT 1
+`))
+const getLast25After = all(db.query(`
+  SELECT *
+  FROM entry
+  WHERE rowid > ?
+  ORDER BY rowid DESC
+  LIMIT 25
+`))
 
 const videoExt = new Set(['mp4','webm','mov'])
 const imageExt = new Set(['jpg','webp','gif', 'png', 'avif', 'jpeg'])
@@ -39,37 +55,15 @@ const getContentAndType = data => {
   const ext = url.pathname.split('.').at(-1)
   if (imageExt.has(ext)) return { type: 'image', content }
   if (videoExt.has(ext)) return { type: 'video', content }
-  if (!content) return { type: 'text', content: `https://reddit.com${data.permalink}` }
+  if (url.hostname === 'www.reddit.com') return { type: 'text', content }
   return { type: 'link', content }
 }
 
+const updateScore = db.query(`UPDATE entry SET score = ? WHERE id = ?`)
 const insertEntry = db.query(`
   INSERT INTO entry (id, title, type, content, image, score, source, at)
-  VALUES            ( ?,     ?,    ?,       ?,     ?,     ?,      ?,  ?)
-  RETURNING   rowid
+  VALUES            ( ?,     ?,    ?,       ?,     ?,      ?,     ?,  ?)
 `)
-
-const addEntry = entry => {
-  console.log('new:', entry)
-  const inserted = insertEntry.get(
-    entry.id,
-    entry.title,
-    entry.type,
-    entry.content,
-    entry.image,
-    entry.score,
-    entry.source,
-    entry.at,
-  )
-  console.log({inserted})
-  entry.i = entry.rowid
-  entries[entry.id] = entry
-}
-
-const updateScore = (id, score) => {
-  db.run(`UPDATE entry SET score = ? WHERE id = ?`, score, id)
-  entries[id].score = score
-}
 
 const fetchReddit = async ({ sub, threshold }) => {
   let after = ''
@@ -84,42 +78,42 @@ const fetchReddit = async ({ sub, threshold }) => {
       t: 'day',
     })
 
-    console.log(`https://www.reddit.com${sub}/top.json?${params}`)
+    console.log(sub, { after })
     const headers = { 'User-Agent': 'clembot' }
     const res = await fetch(`https://www.reddit.com${sub}/top.json?${params}`, { headers })
     const result = await res.json()
+    after = result.data.after
     for (const { data } of result.data.children) {
       let image = data.thumbnail
       if (data.score < threshold) break main
       let { content, type } = getContentAndType(data)
       const id = `r:${data.id}`
-      if (entries[id]) {
-        updateScore(id, data.score)
-      } else {
-        if (type === 'link') {
-          const res = await fetch('https://api.peekalink.io', {
-            headers: { 'X-API-Key':  Bun.env.PEEKALINK_KEY },
-            method: 'POST',
-            body: JSON.stringify({ link: content }),
-          })
-          const meta = await res.json()
-          const url = meta.redirected ? meta.redirectionUrl : meta.url
-          content = [url, (meta.title || '').replaceAll('\n', ' '), (meta.description || '')].join('\n')
-          meta.image?.url && (image = meta.image.url)
-        }
-        addEntry({
-          id,
-          type,
-          image,
-          content,
-          source: sub,
-          title: data.title,
-          score: data.score,
-          at: data.created_utc,
-        })
+      if (getById(id)) {
+        updateScore.run(id, data.score)
+        continue
       }
+      if (type === 'link') {
+        const res = await fetch('https://api.peekalink.io', {
+          headers: { 'X-API-Key':  Bun.env.PEEKALINK_KEY },
+          method: 'POST',
+          body: JSON.stringify({ link: content }),
+        })
+        const meta = await res.json()
+        const url = meta.redirected ? meta.redirectionUrl : meta.url
+        content = [url, (meta.title || '').replaceAll('\n', ' '), (meta.description || '')].join('\n')
+        meta.image?.url && (image = meta.image.url)
+      }
+      insertEntry.run(
+        id,               // id
+        data.title,       // title
+        type,             // type
+        content,          // content
+        image,            // image
+        data.score,       // score
+        sub,              // source
+        data.created_utc, // at
+      )
     }
-    after = result.data.after
   }
 }
 
@@ -142,16 +136,79 @@ for (const [sub, { threshold, interval }] of Object.entries({
   setTimeout(update, interval * Math.random())
 }
 
-const server = { port: Bun.env.PORT }
+const HTMLInit = {
+  headers: new Headers({
+    'Content-Type': 'text/html',
+    'Cache-Control': 'max-age=31536000, immutable',
+  }),
+}
+const JSONInit = {
+  headers: new Headers({
+    'Content-Type': 'application/json',
+    'Cache-Control': 'max-age=31536000, immutable',
+  }),
+}
+const JSONInitNoCache = {
+  headers: new Headers({
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache',
+  }),
+}
+const JS = String(() => {
 
-// TODO: handle "cache"
-const init = { headers: { 'content-type': 'text/html' } }
-server.fetch = () => new Response(`
+const templates = {
+  video: document.getElementById('video').content.firstElementChild,
+  image: document.getElementById('image').content.firstElementChild,
+  text: document.getElementById('text').content.firstElementChild,
+  link: document.getElementById('link').content.firstElementChild,
+}
+
+const pad0 = s => String(s).padStart(2, '0')
+const template = document.getElementById('video').content.firstElementChild
+const makeElement = entry => {
+  const li = templates[entry.type].cloneNode(true)
+  const [score] = li.getElementsByClassName('score')
+  const [content] = li.getElementsByClassName('content')
+  const [title] = li.getElementsByClassName('title')
+  const [link] = li.getElementsByClassName('link')
+  title.textContent = entry.title
+  link.href = entry.id.startsWith('r:') ? `http://ssh.oct.ovh:8080/${entry.id.slice(2)}?sort=top` : ''
+  score.textContent = entry.score > 1000 ? `${Math.round(entry.score / 1000)}k` : entry.score
+  li.id = entry.id
+  switch (entry.type) {
+    case 'video': {
+      const url = new URL(entry.content)
+      if (url.pathname.endsWith('.m3u8')) {
+        content.dataset.hls = entry.content
+      } else {
+        content.src = entry.content
+      }
+      break
+    } case 'image': {
+      content.src = entry.content
+      break
+    } case 'link': {
+      title.href = entry.content
+      // pass-through
+    } default: {
+      li.style.backgroundImage = `url('${entry.image}')`
+      break
+    }
+  }
+  return li
+}
+
+document.querySelector('ul').append(...initialEntries.map(makeElement))
+
+}).slice(7, -1)
+
+const generateIndex = initialEntries => `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=0.75">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📜</text></svg>">
   <title>Noscroll</title>
 <style>
 ul {
@@ -166,9 +223,7 @@ body {
   font-family: monospace;
 }
 ul, li { padding: 0 }
-ul {
-  list-decoration: none;
-}
+ul { list-decoration: none }
 h2 {
   padding: 14px;
   background: #19171c;
@@ -227,62 +282,8 @@ img {
 </template>
 <ul></ul>
 <script>
-const initialEntries = ${JSON.stringify(Object.values(entries).sort(byRowID).slice(0, 25))}
-${String(() => {
-
-const templates = {
-  video: document.getElementById('video').content.firstElementChild,
-  image: document.getElementById('image').content.firstElementChild,
-  text: document.getElementById('text').content.firstElementChild,
-  link: document.getElementById('link').content.firstElementChild,
-}
-
-const pad0 = s => String(s).padStart(2, '0')
-const template = document.getElementById('video').content.firstElementChild
-const makeElement = entry => {
-  const li = templates[entry.type].cloneNode(true)
-  const [score] = li.getElementsByClassName('score')
-  const [content] = li.getElementsByClassName('content')
-  const [title] = li.getElementsByClassName('title')
-  const [link] = li.getElementsByClassName('link')
-  title.textContent = entry.title
-  link.href = entry.id.startsWith('r:') ? `http://ssh.oct.ovh:8080/${entry.id.slice(2)}?sort=top` : ''
-  score.textContent = entry.score > 1000 ? `${Math.round(entry.score / 1000)}k` : entry.score
-  li.id = entry.id
-  switch (entry.type) {
-    case 'video': {
-      const url = new URL(entry.content)
-      if (url.pathname.endsWith('.m3u8')) {
-        content.dataset.hls = entry.content
-      } else {
-        content.src = entry.content
-      }
-      break
-    } case 'image': {
-      content.src = entry.content
-      break
-    } case 'link': {
-      title.href = entry.content
-      fetch(entry.content)
-        .then(async res => {
-          const text = await res.text()
-          const dom = new DOMParser().parseFromString('text/html')
-          const metas = Object.fromEntries([...dom.getElementsByTagName('meta')].map(m => [m.name, m.content]))
-          console.log(metas)
-        })
-      console.log(entry)
-      // pass-through
-    } default: {
-      li.style.backgroundImage = `url('${entry.image}')`
-      break
-    }
-  }
-  return li
-}
-
-document.querySelector('ul').append(...initialEntries.map(makeElement))
-
-}).slice(7, -1)}</script>
+const initialEntries = ${initialEntries}
+${JS}</script>
 </body>
 <script type="module">
 // import Hls from "https://cdn.skypack.dev/hls.js?min"
@@ -301,7 +302,49 @@ for (const video of document.querySelectorAll('video[data-hls]')) {
     // TODO: handle unable to play media
   }
 }
-</script>
-</html>`, init)
 
-export default server
+</script>
+</html>`
+
+const _404 = new Response(null, { status: 404 })
+const _500 = new Response(null, { status: 500 })
+const handleRequest = pathname => {
+  if (pathname[2] === ':') {
+    const [id, action] = pathname.slice(1).split('/')
+    const entry = getRowIdOf(id)
+    if (!entry) return _404
+    const entries = getLast25After(entry.rowid)
+    if (action === 'refresh') {
+      return new Response(
+        JSON.stringify(entries),
+        entries.length > 24 ? JSONInit : JSONInitNoCache,
+      )
+    }
+    const body = generateIndex(JSON.stringify(entries))
+    return new Response(body, HTMLInit)
+  }
+
+  if (pathname === '/') {
+    const lastId = getLastId()?.id
+    return new Response(null, lastId
+      ? { status: 302, headers: { Location: `/${lastId}` } }
+      : { status: 204 })
+  }
+
+  return _404
+}
+
+export default {
+  port: Bun.env.PORT,
+  fetch(request) {
+    try {
+      if (request.method !== 'GET') return _404
+      const { pathname } = new URL(request.url)
+      console.log('GET', pathname)
+      return handleRequest(pathname)
+    } catch (err) {
+      console.error(err)
+      return _500
+    }
+  }
+}
