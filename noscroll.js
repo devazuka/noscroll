@@ -198,7 +198,13 @@ const makeElement = entry => {
   return li
 }
 
-document.querySelector('ul').append(...initialEntries.map(makeElement))
+if (initialEntries.length > 24) {
+  const a = document.createElement('a')
+  a.href = `/${initialEntries.at(-1).id}`
+  a.textContent = 'next ->'
+  document.querySelector('nav').append(a)
+}
+document.querySelector('ul').append(...initialEntries.slice(0, 24).map(makeElement))
 
 }).slice(7, -1)
 
@@ -215,19 +221,25 @@ ul {
   font-familly: monospace;
 }
 body, li, ul { margin: 0 }
+body, a { color: #a996c6 }
 body {
   max-width: 840px;
   margin: 0 auto;
   background-color: #000;
-  color: #a996c6;
   font-family: monospace;
 }
+nav { text-align: right }
 ul, li { padding: 0 }
 ul { list-decoration: none }
 h2 {
   padding: 14px;
   background: #19171c;
   margin: 0;
+}
+nav > a {
+  display: inline-block;
+  font-size: 1.5em;
+  padding-top: 1em;
 }
 .score {
   padding: 1px 4px;
@@ -281,6 +293,7 @@ img {
   <li>
 </template>
 <ul></ul>
+<nav></nav>
 <script>
 const initialEntries = ${initialEntries}
 ${JS}</script>
