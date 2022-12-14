@@ -23,7 +23,7 @@ const getLastId = get(db.query(`
   SELECT id
   FROM entry
   ORDER BY rowid DESC
-  LIMIT 25, 1`))
+  LIMIT 1`))
 
 const getRowIdOf = get(db.query(`
   SELECT rowid
@@ -34,7 +34,7 @@ const getRowIdOf = get(db.query(`
 const getLast25After = all(db.query(`
   SELECT *
   FROM entry
-  WHERE rowid > ?
+  WHERE rowid <= ?
   ORDER BY rowid DESC
   LIMIT 25
 `))
@@ -167,8 +167,8 @@ const pad0 = s => String(s).padStart(2, '0')
 const template = document.getElementById('video').content.firstElementChild
 const makeElement = entry => {
   const li = templates[entry.type].cloneNode(true)
-  const [score] = li.getElementsByClassName('score')
   const [content] = li.getElementsByClassName('content')
+  const [score] = li.getElementsByClassName('score')
   const [title] = li.getElementsByClassName('title')
   const [link] = li.getElementsByClassName('link')
   title.textContent = entry.title
