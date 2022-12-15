@@ -65,6 +65,32 @@ const insertEntry = db.query(`
   VALUES            ( ?,     ?,    ?,       ?,     ?,      ?,     ?,  ?)
 `)
 
+// tmp fix of source values
+console.log('start fixn!')
+const fix = db.query('UPDATE entry SET source = ? WHERE id = ?')
+for (const entry of db.query(`
+  SELECT id FROM entry WHERE source = '/r/all'
+`).all()) {
+  continue
+  const headers = { 'User-Agent': 'font-size-14' }
+  const params = new URLSearchParams({ raw_json: 1 })
+  const res = await fetch(`https://www.reddit.com/${entry.id.split(':')[1]}.json?${params}`, { headers })
+  if (!res.ok) {
+    console.log(res.status, entry)
+    fix.run('all', entry.id)
+    continue
+  }
+  const [posts, comments] = await res.json()
+  const newSource = posts.data.children[0].data.subreddit
+  fix.run(newSource, entry.id)
+}
+for (const entry of db.query(`
+  SELECT id, source FROM entry WHERE source like '/r/%'
+`).all()) {
+  fix.run(entry.source.slice(3), entry.id)
+}
+console.log('fix done!')
+
 const fetchReddit = async ({ sub, threshold }) => {
   let after = ''
   main: while (true) {
@@ -110,7 +136,7 @@ const fetchReddit = async ({ sub, threshold }) => {
         content,          // content
         image,            // image
         data.score,       // score
-        sub,              // source
+        data.subreddit,   // source
         data.created_utc, // at
       )
     }
@@ -163,7 +189,8 @@ const templates = {
   text: document.getElementById('text').content.firstElementChild,
   link: document.getElementById('link').content.firstElementChild,
 }
-
+const hashChar = (s,c) => Math.imul(31, s) + c.charCodeAt(0) | 0
+const hash = str => Math.abs([...str].reduce(hashChar, 0x811c9dc5) % 36000) / 100
 const pad0 = s => String(s).padStart(2, '0')
 const template = document.getElementById('video').content.firstElementChild
 const makeElement = entry => {
@@ -172,9 +199,17 @@ const makeElement = entry => {
   const [score] = li.getElementsByClassName('score')
   const [title] = li.getElementsByClassName('title')
   const [link] = li.getElementsByClassName('link')
+
+  const scoreHue = Math.round(Math.min(entry.score, 180_000) / 500)
+  // TODO: probably use some kind of log scale for the colors ?
+
   title.textContent = entry.title
+  link.textContent = entry.source
   link.href = entry.id.startsWith('r:') ? `http://ssh.oct.ovh:8080/${entry.id.slice(2)}?sort=top` : ''
+  link.style.backgroundColor = `hsl(${hash(entry.source)}, 100%, 80%)`
+  score.style.backgroundColor = `hsl(${scoreHue}, 100%, 70%)`
   score.textContent = entry.score > 1000 ? `${Math.round(entry.score / 1000)}k` : entry.score
+  li.className = entry.source.toLowerCase()
   li.id = entry.id
   switch (entry.type) {
     case 'video': {
@@ -242,11 +277,12 @@ nav > a {
   font-size: 1.5em;
   padding-top: 1em;
 }
-.score {
+.score, .link {
   padding: 1px 4px;
   background: #d191ff;
   border-radius: 10px;
-  color: #19171c;
+  color: #000;
+  text-decoration: none;
 }
 li {
   background-color: #3b3642;
@@ -267,6 +303,13 @@ img {
   margin: 0 auto;
   display: block;
   max-height: calc(100vh - 50px);
+}
+.link { font-weight: normal; font-style: italic }
+.link::before {
+  content: '/r/';
+  color: #0008;
+  letter-spacing: -0.2em;
+  margin-right: 0.2em;
 }
 </style>
 </head>
