@@ -73,9 +73,8 @@ const insertEntry = db.query(`
 console.log('start fixn!')
 const fix = db.query('UPDATE entry SET source = ? WHERE id = ?')
 for (const entry of db.query(`
-  SELECT id FROM entry WHERE source = '/r/all'
+  SELECT id FROM entry WHERE source = 'all'
 `).all()) {
-  continue
   const headers = { 'User-Agent': 'font-size-14' }
   const params = new URLSearchParams({ raw_json: 1 })
   const res = await fetch(`https://www.reddit.com/${entry.id.split(':')[1]}.json?${params}`, { headers })
@@ -87,11 +86,6 @@ for (const entry of db.query(`
   const [posts, comments] = await res.json()
   const newSource = posts.data.children[0].data.subreddit
   fix.run(newSource, entry.id)
-}
-for (const entry of db.query(`
-  SELECT id, source FROM entry WHERE source like '/r/%'
-`).all()) {
-  fix.run(entry.source.slice(3), entry.id)
 }
 console.log('fix done!')
 
