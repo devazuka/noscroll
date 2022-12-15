@@ -35,7 +35,7 @@ const getRowIdOf = get(db.query(`
   WHERE id = ?
   LIMIT 1
 `))
-const getLast25After = all(db.query(`
+const getLast25 = all(db.query(`
   SELECT *
   FROM entry
   WHERE rowid <= ?
@@ -100,7 +100,7 @@ const fetchReddit = async ({ sub, threshold }) => {
   main: while (true) {
     // - fetch top post of the day
     const params = new URLSearchParams({
-      // include_unadvertisable: 1, ??
+      include_unadvertisable: 1, // ?? not sure if needed
       after,
       include_over_18: 1,
       raw_json: 1,
@@ -374,7 +374,7 @@ const handleRequest = pathname => {
     const [id, action] = pathname.slice(1).split('/')
     const entry = getRowIdOf(id)
     if (!entry) return _404
-    const entries = getLast25After(entry.rowid)
+    const entries = getLast25(entry.rowid)
     if (action === 'refresh') {
       return new Response(
         JSON.stringify(entries),
