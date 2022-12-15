@@ -121,6 +121,7 @@ const byRowID = (a, b) => b.i - a.i
 for (const [sub, { threshold, interval }] of Object.entries({
   '/r/rance':           { threshold:    500, interval: 12*H },
   '/r/ProgrammerHumor': { threshold: 12_000, interval:  3*H },
+  '/r/rienabranler':    { threshold:    150, interval: 12*H },
   '/r/olkb':            { threshold:    200, interval: 12*H },
   '/r/all':             { threshold: 30_000, interval: 15*M },
 })) {
