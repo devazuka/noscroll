@@ -69,26 +69,6 @@ const insertEntry = db.query(`
   VALUES            ( ?,     ?,    ?,       ?,     ?,      ?,     ?,  ?)
 `)
 
-// tmp fix of source values
-console.log('start fixn!')
-const fix = db.query('UPDATE entry SET source = ? WHERE id = ?')
-for (const entry of db.query(`
-  SELECT id FROM entry WHERE source = 'all'
-`).all()) {
-  const headers = { 'User-Agent': 'font-size-14' }
-  const params = new URLSearchParams({ raw_json: 1 })
-  const res = await fetch(`https://www.reddit.com/${entry.id.split(':')[1]}.json?${params}`, { headers })
-  if (!res.ok) {
-    console.log(res.status, entry)
-    fix.run('all', entry.id)
-    continue
-  }
-  const [posts, comments] = await res.json()
-  const newSource = posts.data.children[0].data.subreddit
-  fix.run(newSource, entry.id)
-}
-console.log('fix done!')
-
 const fetchReddit = async ({ sub, threshold }) => {
   let after = ''
   main: while (true) {
