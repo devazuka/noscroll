@@ -50,7 +50,12 @@ const getUrl = url => { try { return new URL(url) } catch {} }
 const getContentAndType = data => {
   if (data.is_video) return { type: 'video', content: data.media?.reddit_video?.hls_url || '???' }
   const previewImage = data.preview?.images?.[0]
-  if (previewImage) return { type: 'image', content: previewImage.source.url }
+  if (previewImage) {
+    if (data.domain === 'gfycat.com' || data.url.endsWith('.gifv')) {
+      return { type: 'image', content: data.url }
+    }
+    return { type: 'image', content: previewImage.source.url }
+  }
   const mediaImage = data.media_metadata && Object.values(data.media_metadata)[0]
   if (mediaImage) return { type: 'image', content: mediaImage.s.u }
   const content = data.url_overridden_by_dest || data.url
