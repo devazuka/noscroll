@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS entry (
   score INTEGER, -- metric count (upvotes ?)
   at INTEGER -- timestamp of the created time
 )`)
+db.run('PRAGMA vacuum')
+db.run('PRAGMA journal_mode = WAL')
+db.run('PRAGMA synchronous = off')
+db.run('PRAGMA temp_store = memory')
 
 const get = q => q.get.bind(q)
 const all = q => q.all.bind(q)
