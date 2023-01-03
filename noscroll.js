@@ -188,7 +188,7 @@ const makeElement = entry => {
 
   title.textContent = entry.title
   link.textContent = entry.source
-  link.href = entry.id.startsWith('r:') ? `http://ssh.oct.ovh:8080/${entry.id.slice(2)}?sort=top` : ''
+  link.href = entry.id.startsWith('r:') ? `http://ssh.oct.ovh:8080/r/${entry.source}/comments/${entry.id.slice(2)}?sort=top` : ''
   link.style.backgroundColor = `hsl(${hash(entry.source)}, 100%, 80%)`
   score.style.backgroundColor = `hsl(${scoreHue}, 100%, 70%)`
   score.textContent = entry.score > 1000 ? `${Math.round(entry.score / 1000)}k` : entry.score
