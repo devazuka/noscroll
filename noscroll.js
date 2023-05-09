@@ -126,19 +126,51 @@ const fetchReddit = async ({ sub, threshold }) => {
   }
 }
 
-const byRowID = (a, b) => b.i - a.i
-for (const [sub, { threshold, interval }] of Object.entries({
-  '/r/rance':           { threshold:    500, interval: 12*H },
-  '/r/ProgrammerHumor': { threshold: 12_000, interval:  3*H },
-  '/r/rienabranler':    { threshold:    150, interval: 12*H },
-  '/r/olkb':            { threshold:    200, interval: 12*H },
-  '/r/all':             { threshold: 30_000, interval: 15*M },
-})) {
+const fetchHN = async () => {
+  const params = new URLSearchParams({ numericFilters: 'points>=250', hitsPerPage: '50' })
+  const res = await fetch(`https://hn.algolia.com/api/v1/search_by_date?${params}`)
+  for (const data of (await res.json()).hits) {
+    const id = `hn:${data.objectID}`
+    if (getById(id)) {
+      updateScore.run(id, data.points)
+      continue
+    }
+
+    const res = await fetch('https://api.peekalink.io', {
+      headers: { 'X-API-Key':  Bun.env.PEEKALINK_KEY },
+      method: 'POST',
+      body: JSON.stringify({ link: data.url }),
+    })
+    const meta = await res.json()
+    const url = meta.redirected ? meta.redirectionUrl : meta.url
+    const content = [url, (meta.title || '').replaceAll('\n', ' '), (meta.description || '')].join('\n')
+    const image = meta.image?.url || ''
+    insertEntry.run(
+      id,                // id
+      data.title,        // title
+      'link',            // type
+      content,           // content
+      image,             // image
+      data.points,       // score
+      'hackernews',      // source
+      data.created_at_i, // at
+    )
+  }
+}
+
+for (const { handler, interval } of [
+  { interval: 12*H, handler: () => fetchReddit({ sub: '/r/rance',           threshold:    500 }) },
+  { interval:  3*H, handler: () => fetchReddit({ sub: '/r/ProgrammerHumor', threshold: 12_000 }) },
+  { interval: 12*H, handler: () => fetchReddit({ sub: '/r/rienabranler',    threshold:    150 }) },
+  { interval: 12*H, handler: () => fetchReddit({ sub: '/r/olkb',            threshold:    200 }) },
+  { interval: 15*M, handler: () => fetchReddit({ sub: '/r/all',             threshold: 30_000 }) },
+  { interval:  2*H, handler: fetchHN },
+]) {
   const update = async () => {
     try {
-      await fetchReddit({ sub, threshold })
+      await handler()
     } catch (err) {
-      console.error('unable to fetch sub', sub, err)
+      console.error('handler failed', interval, err)
     } finally {
       setTimeout(update, interval)
     }
@@ -174,8 +206,6 @@ const templates = {
 }
 const hashChar = (s,c) => Math.imul(31, s) + c.charCodeAt(0) | 0
 const hash = str => Math.abs([...str].reduce(hashChar, 0x811c9dc5) % 36000) / 100
-const pad0 = s => String(s).padStart(2, '0')
-const template = document.getElementById('video').content.firstElementChild
 const makeElement = entry => {
   const li = templates[entry.type].cloneNode(true)
   const [content] = li.getElementsByClassName('content')
@@ -188,7 +218,10 @@ const makeElement = entry => {
 
   title.textContent = entry.title
   link.textContent = entry.source
-  link.href = entry.id.startsWith('r:') ? `http://ssh.oct.ovh:8080/r/${entry.source}/comments/${entry.id.slice(2)}?sort=top` : ''
+  link.href = entry.id.startsWith('r:')
+    ? `https://libreddit.kutay.dev/r/${entry.source}/comments/${entry.id.slice(2)}?sort=top`
+    : `https://news.ycombinator.com/item?id=${entry.id.slice(3)}`
+
   link.style.backgroundColor = `hsl(${hash(entry.source)}, 100%, 80%)`
   score.style.backgroundColor = `hsl(${scoreHue}, 100%, 70%)`
   score.textContent = entry.score > 1000 ? `${Math.round(entry.score / 1000)}k` : entry.score
@@ -207,7 +240,9 @@ const makeElement = entry => {
       content.src = entry.content
       break
     } case 'link': {
-      title.href = entry.content
+      const [url, title] = entry.content.split('\n')
+      title.href = url
+      title && (title.title = title)
       // pass-through
     } default: {
       li.style.backgroundImage = `url('${entry.image}')`
