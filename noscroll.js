@@ -509,13 +509,14 @@ const fixMissingMetadata = async entry => {
   if (entry.type !== 'link') return
   if (entry.content.trim()) return
   let url
+  console.log('updating', entry.id)
   if (entry.id.startsWith('hn:')) {
     const res = await fetch(`https://hacker-news.firebaseio.com/v0/item/${entry.id.slice(3)}.json`)
     url = (await res.json()).url
   } else if (entry.id.startsWith('r:')) {
     const res = await fetch(`https://www.reddit.com/r/${entry.source}/comments/${entry.id.slice(2)}.json`)
     url = (await res.json())[0].children[0].data.url
-  }
+  } else return
   const meta = await fetchMeta(url)
   entry.content = [meta.url || url, meta.title || '', meta.description || ''].join('\n')
   entry.image = meta.image || ''
