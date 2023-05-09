@@ -412,7 +412,7 @@ for (const video of document.querySelectorAll('video[data-hls]')) {
 const _404 = new Response(null, { status: 404 })
 const _500 = new Response(null, { status: 500 })
 const handleRequest = pathname => {
-  if (pathname[2] === ':') {
+  if (pathname[2] === ':' || pathname[3] === ':') {
     const [id, action] = pathname.slice(1).split('/')
     const entry = getRowIdOf(id)
     if (!entry) return _404
