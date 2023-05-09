@@ -1,7 +1,12 @@
-import { Database } from 'bun:sqlite'
+import { DB as Database } from "https://deno.land/x/sqlite/mod.ts"
 
 const M = 1000*60
 const H = 60*M
+
+const decode = text => {
+  try { return decodeURIComponent(text) }
+  catch { return text }
+}
 
 const parseMetaProps = text => {
   let i = -1
@@ -15,7 +20,11 @@ const parseMetaProps = text => {
     while (j < max) {
       const c = text[j]
       if (c === '=') break
-      if (c === ' ') continue
+      if (c === ' ') {
+        props[key] = true
+        i = j
+        continue main
+      }
       key += c
       ++j
     }
@@ -28,7 +37,7 @@ const parseMetaProps = text => {
     while (j < max) {
       // end quote
       if (text[++j] !== quote) continue
-      props[key] = decodeURIComponent(text.slice(i, j))
+      props[key] = decode(text.slice(i, j))
       i = j
       continue main
     }
@@ -36,36 +45,34 @@ const parseMetaProps = text => {
   return props
 }
 
-const fetchMeta = async url => {
-  const res = await fetch(url)
-  const text = await res.text()
+const parseHTMLTags = (html, url) => {
   let i = -1
   const metas = []
-  const max = text.length
+  const max = html.length
   let title
   while (++i < max) {
-    const c = text[i]
+    const c = html[i]
 
     // start of tag parse
     if (c !== '<') continue
     let j = i + 1
     let tag = ''
     while (j < max) {
-      const lc = text[j].toLowerCase()
+      const lc = html[j].toLowerCase()
       if (lc < 'a' || lc > 'z') break
       tag += lc
       ++j
     }
     if (tag === 'meta') {
       i = j
-      while (text[j] !== '>') ++j
-      metas.push(parseMetaProps(text.slice(i, j)))
-    } else if (tag === 'title') {
+      while (html[j] !== '>' && j < max) ++j
+      metas.push(parseMetaProps(html.slice(i, j)))
+    } else if (tag === 'title' && j < max) {
       if (!title) {
-        while (text[j] !== '>') ++j
+        while (html[j] !== '>' && j < max) ++j
         i = ++j
-        while (text[j] !== '<') ++j
-        title = decodeURIComponent(text.slice(i, j))
+        while (html[j] !== '<' && j < max) ++j
+        title = decode(html.slice(i, j))
       }
       i = j
     } else {
@@ -76,7 +83,7 @@ const fetchMeta = async url => {
   }
 
   const props = {}
-  const meta = { title, url: res.url }
+  const meta = { title, url }
   const rest = []
   for (const m of metas) {
     if (m.itemprop) {
@@ -107,11 +114,24 @@ const fetchMeta = async url => {
   props.title && (meta.title = props.title)
   props.description && (meta.description = props.description)
 
+  // convert image path to absolute URLs
+  meta.image?.[0] === '/' && (meta.image = `${new URL(props.url || url).origin}${meta.image}`)
   return meta
 }
 
+const fetchMeta = async url => {
+  if (!url) return {}
+  try {
+    const res = await fetch(url)
+    const text = await res.text()
+    return parseHTMLTags(text, res.url)
+  } catch {
+    return {}
+  }
+}
+
 const db = new Database('entries.sqlite')
-db.run(`
+db.query(`
 CREATE TABLE IF NOT EXISTS entry (
   id TEXT PRIMARY KEY, -- id (ex: h:33912060, r:zjxusx)
   content TEXT NOT NULL, -- variable depend on type
@@ -122,33 +142,35 @@ CREATE TABLE IF NOT EXISTS entry (
   score INTEGER, -- metric count (upvotes ?)
   at INTEGER -- timestamp of the created time
 )`)
-db.run('PRAGMA vacuum')
-db.run('PRAGMA journal_mode = WAL')
-db.run('PRAGMA synchronous = off')
-db.run('PRAGMA temp_store = memory')
+db.query('PRAGMA vacuum')
+// db.query('PRAGMA journal_mode = WAL')
+db.query('PRAGMA synchronous = off')
+db.query('PRAGMA temp_store = memory')
 
-const get = q => q.get.bind(q)
-const all = q => q.all.bind(q)
-const getById = get(db.query(`SELECT id FROM entry WHERE id = ? LIMIT 1`))
-const getLastId = get(db.query(`
+const bind = (obj, method) => obj[method].bind(obj)
+const exec = q => bind(db.prepareQuery(q), 'execute')
+const get = q => bind(db.prepareQuery(q), 'firstEntry')
+const all = q => bind(db.prepareQuery(q), 'allEntries')
+const getById = get(`SELECT id FROM entry WHERE id = ? LIMIT 1`)
+const getLastId = get(`
   SELECT id
   FROM entry
   ORDER BY rowid DESC
-  LIMIT 1`))
+  LIMIT 1`)
 
-const getRowIdOf = get(db.query(`
+const getRowIdOf = get(`
   SELECT rowid
   FROM entry
   WHERE id = ?
   LIMIT 1
-`))
-const getLast25 = all(db.query(`
+`)
+const getLast25 = all(`
   SELECT *
   FROM entry
   WHERE rowid <= ?
   ORDER BY rowid DESC
   LIMIT 25
-`))
+`)
 
 const videoExt = new Set(['mp4','webm','mov'])
 const imageExt = new Set(['jpg','webp','gif', 'png', 'avif', 'jpeg'])
@@ -175,8 +197,8 @@ const getContentAndType = data => {
   return { type: 'link', content }
 }
 
-const updateScore = db.query(`UPDATE entry SET score = ? WHERE id = ?`)
-const insertEntry = db.query(`
+const updateScore = exec(`UPDATE entry SET score = ? WHERE id = ?`)
+const insertEntry = exec(`
   INSERT INTO entry (id, title, type, content, image, score, source, at)
   VALUES            ( ?,     ?,    ?,       ?,     ?,      ?,     ?,  ?)
 `)
@@ -194,7 +216,7 @@ const fetchReddit = async ({ sub, threshold }) => {
       t: 'day',
     })
 
-    console.log(sub, { after })
+    console.log(sub, 'after', after)
     const headers = { 'User-Agent': 'clembot' }
     const res = await fetch(`https://www.reddit.com${sub}/top.json?${params}`, { headers })
     const result = await res.json()
@@ -204,8 +226,8 @@ const fetchReddit = async ({ sub, threshold }) => {
       if (data.score < threshold) break main
       let { content, type } = getContentAndType(data)
       const id = `r:${data.id}`
-      if (getById(id)) {
-        updateScore.run(id, data.score)
+      if (getById([id])) {
+        updateScore([id, data.score])
         continue
       }
       if (type === 'link') {
@@ -213,7 +235,7 @@ const fetchReddit = async ({ sub, threshold }) => {
         content = [meta.url, (meta.title || '').replaceAll('\n', ' '), (meta.description || '')].join('\n')
         meta.image && (image = meta.image)
       }
-      insertEntry.run(
+      insertEntry([
         id,               // id
         data.title,       // title
         type,             // type
@@ -222,25 +244,25 @@ const fetchReddit = async ({ sub, threshold }) => {
         data.score,       // score
         data.subreddit,   // source
         data.created_utc, // at
-      )
+      ])
     }
   }
 }
 
 const fetchHN = async () => {
-  const params = new URLSearchParams({ numericFilters: 'points>=250', hitsPerPage: '50' })
+  const params = new URLSearchParams({ numericFilters: 'points>=250', hitsPerPage: '500' })
   const res = await fetch(`https://hn.algolia.com/api/v1/search_by_date?${params}`)
   for (const data of (await res.json()).hits) {
     const id = `hn:${data.objectID}`
-    if (getById(id)) {
-      updateScore.run(id, data.points)
+    if (getById([id])) {
+      updateScore([id, data.points])
       continue
     }
 
-    const meta = await fetchMeta(data.url)
+    const meta = await fetchMeta(data.url || `https://news.ycombinator.com/item?id=${data.objectID}`)
     const content = [meta.url, (meta.title || '').replaceAll('\n', ' '), (meta.description || '')].join('\n')
     const image = meta.image || ''
-    insertEntry.run(
+    insertEntry([
       id,                // id
       data.title,        // title
       'link',            // type
@@ -249,7 +271,7 @@ const fetchHN = async () => {
       data.points,       // score
       'hackernews',      // source
       data.created_at_i, // at
-    )
+    ])
   }
 }
 
@@ -292,6 +314,7 @@ const JSONInitNoCache = {
   }),
 }
 const JS = String(() => {
+const DOMAIN = localStorage.DOMAIN || 'https://libreddit.kutay.dev'
 
 const templates = {
   video: document.getElementById('video').content.firstElementChild,
@@ -314,10 +337,13 @@ const makeElement = entry => {
   title.textContent = entry.title
   link.textContent = entry.source
   link.href = entry.id.startsWith('r:')
-    ? `https://libreddit.kutay.dev/r/${entry.source}/comments/${entry.id.slice(2)}?sort=top`
+    ? `${DOMAIN}/r/${entry.source}/comments/${entry.id.slice(2)}?sort=top`
     : `https://news.ycombinator.com/item?id=${entry.id.slice(3)}`
 
-  link.style.backgroundColor = `hsl(${hash(entry.source)}, 100%, 80%)`
+  link.style.backgroundColor = entry.source === 'hackernews'
+    ? '#ff6600'
+    : `hsl(${hash(entry.source)}, 100%, 80%)`
+
   score.style.backgroundColor = `hsl(${scoreHue}, 100%, 70%)`
   score.textContent = entry.score > 1000 ? `${Math.round(entry.score / 1000)}k` : entry.score
   li.className = entry.source.toLowerCase()
@@ -335,9 +361,10 @@ const makeElement = entry => {
       content.src = entry.content
       break
     } case 'link': {
-      const [url, title] = entry.content.split('\n')
+      content.src = entry.image
+      const [url, name, description] = entry.content.split('\n')
       title.href = url
-      title && (title.title = title)
+      name && (title.title = name)
       // pass-through
     } default: {
       li.style.backgroundImage = `url('${entry.image}')`
@@ -355,12 +382,11 @@ if (initialEntries.length > 24) {
 }
 document.querySelector('ul').append(...initialEntries.slice(0, 24).map(makeElement))
 
-fetch('https://cdn.jsdelivr.net/gh/libreddit/libreddit-instances@master/instances.json')
+localStorage.DOMAIN || fetch('https://cdn.jsdelivr.net/gh/libreddit/libreddit-instances@master/instances.json')
   .then(async res => {
     const { instances } = await res.json()
-    const domain = 'https://libreddit.kutay.dev'
     const links = [...document.getElementsByTagName('a')]
-      .filter(a => a.href.startsWith(domain))
+      .filter(a => a.href.startsWith(DOMAIN))
 
     const getInstanceVersionValue = ({ version }) => {
       const [major, minor = 0, patch = 0] = version.slice(1).split('.').map(Number)
@@ -371,18 +397,18 @@ fetch('https://cdn.jsdelivr.net/gh/libreddit/libreddit-instances@master/instance
 
     const controller = new AbortController()
     const latest = instances.filter(i => i.version === instances[0].version)
-    const testPage = links[0]?.href.slice(domain.length)
+    const testPage = links[0]?.href.slice(DOMAIN.length)
     const fastest = await Promise.race(latest.map(async ({ url }) => {
       await fetch(`${url}${testPage}`, { mode: 'no-cors', signal: controller.signal })
       return url
     }))
     controller.abort()
 
+    localStorage.DOMAIN = fastest
     for (const a of links) {
-      a.href = `${fastest}${a.href.slice(domain.length)}`
+      a.href = `${fastest}${a.href.slice(DOMAIN.length)}`
     }
   })
-
 }).slice(7, -1)
 
 const generateIndex = initialEntries => `
@@ -458,6 +484,7 @@ img {
 <template id="link">
   <li>
     <h2><span class="score">0</span> <a class="link" href="">🔗</a> <a class="title" href=""> </a></h2>
+    <img class="content" src="#" onerror="this.onerror=null; this.remove()">
   <li>
 </template>
 <template id="text">
@@ -468,7 +495,7 @@ img {
 <template id="image">
   <li>
     <h2><span class="score">0</span> <a class="link" href="">🔗</a> <span class="title"> </span></h2>
-    <img class="content" src="#">
+    <img class="content" src="#" onerror="this.onerror=null; this.remove()">
   <li>
 </template>
 <template id="video">
@@ -504,12 +531,17 @@ for (const video of document.querySelectorAll('video[data-hls]')) {
 </script>
 </html>`
 
-const updateMeta = db.query(`UPDATE entry SET content = ?, image = ? WHERE id = ?`)
+const updateMeta = exec(`UPDATE entry SET content = ?, image = ? WHERE id = ?`)
 const fixMissingMetadata = async entry => {
   if (entry.type !== 'link') return
+  if (entry.image?.[0] === '/') {
+    const url = entry.content.split('\n')[0]
+    entry.image = `${new URL(url).origin}${entry.image}`
+    updateMeta([entry.content, entry.image, entry.id])
+    return
+  }
   if (entry.content.trim()) return
   let url
-  console.log('updating', entry.id)
   if (entry.id.startsWith('hn:')) {
     const res = await fetch(`https://hacker-news.firebaseio.com/v0/item/${entry.id.slice(3)}.json`)
     url = (await res.json()).url
@@ -520,7 +552,7 @@ const fixMissingMetadata = async entry => {
   const meta = await fetchMeta(url)
   entry.content = [meta.url || url, meta.title || '', meta.description || ''].join('\n')
   entry.image = meta.image || ''
-  updateMeta.run(entry.content, entry.image, entry.id)
+  updateMeta([entry.content, entry.image, entry.id])
 }
 
 const _404 = new Response(null, { status: 404 })
@@ -528,9 +560,9 @@ const _500 = new Response(null, { status: 500 })
 const handleRequest = async pathname => {
   if (pathname[2] === ':' || pathname[3] === ':') {
     const [id, action] = pathname.slice(1).split('/')
-    const entry = getRowIdOf(id)
+    const entry = getRowIdOf([id])
     if (!entry) return _404
-    const entries = getLast25(entry.rowid)
+    const entries = getLast25([entry.rowid])
     await Promise.allSettled(entries.map(fixMissingMetadata))
     if (action === 'refresh') {
       return new Response(
@@ -552,9 +584,13 @@ const handleRequest = async pathname => {
   return _404
 }
 
-export default {
-  port: Bun.env.PORT,
-  fetch(request) {
+
+Deno.serve({
+  port: Deno.env.get('PORT'),
+  onListen({ port, hostname }) {
+    console.log(`Server started at http://${hostname || 'localhost'}:${port}`)
+  },
+  handler(request) {
     try {
       if (request.method !== 'GET') return _404
       const { pathname } = new URL(request.url)
@@ -565,4 +601,4 @@ export default {
       return _500
     }
   }
-}
+})

@@ -1,3 +1,3 @@
 #!/bin/sh
 
-/root/.bun/bin/bun run noscroll.js
+/root/.deno/bin/deno run --unstable -A noscroll.js
