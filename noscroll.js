@@ -165,7 +165,7 @@ const getContentAndType = data => {
   }
   const mediaImage = data.media_metadata && Object.values(data.media_metadata)[0]
   if (mediaImage) return { type: 'image', content: mediaImage.s.u }
-  const content = data.url_overridden_by_dest || data.url
+  const content = data.url || data.url_overridden_by_dest
   const url = getUrl(content)
   if (!url) return { type: 'text', content: `https://reddit.com${data.permalink}` }
   const ext = url.pathname.split('.').at(-1)
@@ -504,14 +504,33 @@ for (const video of document.querySelectorAll('video[data-hls]')) {
 </script>
 </html>`
 
+const updateMeta = db.query(`UPDATE entry SET content = ?, image = ? WHERE id = ?`)
+const fixMissingMetadata = async entry => {
+  if (entry.type !== 'link') return
+  if (entry.content.trim()) return
+  let url
+  if (entry.id.startsWith('hn:')) {
+    const res = await fetch(`https://hacker-news.firebaseio.com/v0/item/${entry.id.slice(3)}.json`)
+    url = (await res.json()).url
+  } else if (entry.id.startsWith('r:')) {
+    const res = await fetch(`https://www.reddit.com/r/${entry.source}/comments/${entry.id.slice(2)}.json`)
+    url = (await res.json())[0].children[0].data.url
+  }
+  const meta = await fetchMeta(url)
+  entry.content = [meta.url || url, meta.title || '', meta.description || ''].join('\n')
+  entry.image = meta.image || ''
+  updateMeta.run(entry.content, entry.image, entry.id)
+}
+
 const _404 = new Response(null, { status: 404 })
 const _500 = new Response(null, { status: 500 })
-const handleRequest = pathname => {
+const handleRequest = async pathname => {
   if (pathname[2] === ':' || pathname[3] === ':') {
     const [id, action] = pathname.slice(1).split('/')
     const entry = getRowIdOf(id)
     if (!entry) return _404
     const entries = getLast25(entry.rowid)
+    await Promise.allSettled(entries.map(fixMissingMetadata))
     if (action === 'refresh') {
       return new Response(
         JSON.stringify(entries),
@@ -546,6 +565,3 @@ export default {
     }
   }
 }
-
-// fetch once to test
-fetchHN().catch(console.error)
