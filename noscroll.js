@@ -264,7 +264,7 @@ fetch('https://cdn.jsdelivr.net/gh/libreddit/libreddit-instances@master/instance
   .then(async res => {
     const { instances } = await res.json()
     const domain = 'https://libreddit.kutay.dev'
-    const links = document.getElementsByTagName('a')
+    const links = [...document.getElementsByTagName('a')]
       .filter(a => a.href.startsWith(domain))
 
     const getInstanceVersionValue = ({ version }) => {
@@ -451,3 +451,6 @@ export default {
     }
   }
 }
+
+// fetch once to test
+fetchHN().catch(console.error)
