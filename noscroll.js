@@ -3,6 +3,113 @@ import { Database } from 'bun:sqlite'
 const M = 1000*60
 const H = 60*M
 
+const parseMetaProps = text => {
+  let i = -1
+  const max = text.length
+  const props = {}
+  main: while (++i < max) {
+    if (text[i] === ' ') continue
+    // parse key
+    let j = i
+    let key = ''
+    while (j < max) {
+      const c = text[j]
+      if (c === '=') break
+      if (c === ' ') continue
+      key += c
+      ++j
+    }
+    // find starting quote
+    while (++j < max) {
+      if (text[j] === '"' || text[j] === "'") break
+    }
+    const quote = text[j]
+    i = ++j
+    while (j < max) {
+      // end quote
+      if (text[++j] !== quote) continue
+      props[key] = decodeURIComponent(text.slice(i, j))
+      i = j
+      continue main
+    }
+  }
+  return props
+}
+
+const fetchMeta = async url => {
+  const res = await fetch(url)
+  const text = await res.text()
+  let i = -1
+  const metas = []
+  const max = text.length
+  let title
+  while (++i < max) {
+    const c = text[i]
+
+    // start of tag parse
+    if (c !== '<') continue
+    let j = i + 1
+    let tag = ''
+    while (j < max) {
+      const lc = text[j].toLowerCase()
+      if (lc < 'a' || lc > 'z') break
+      tag += lc
+      ++j
+    }
+    if (tag === 'meta') {
+      i = j
+      while (text[j] !== '>') ++j
+      metas.push(parseMetaProps(text.slice(i, j)))
+    } else if (tag === 'title') {
+      if (!title) {
+        while (text[j] !== '>') ++j
+        i = ++j
+        while (text[j] !== '<') ++j
+        title = decodeURIComponent(text.slice(i, j))
+      }
+      i = j
+    } else {
+      i = j
+      continue
+    }
+    i = j
+  }
+
+  const props = {}
+  const meta = { title, url: res.url }
+  const rest = []
+  for (const m of metas) {
+    if (m.itemprop) {
+      props[m.itemprop.toLowerCase()] = m.content
+      continue
+    }
+
+    if (!m.content) continue
+
+    const type = (m.property && 'property') || (m.name && 'name')
+    if (!type) {
+      rest.push(m)
+      continue
+    }
+
+    const nested = m[type].indexOf(':')
+    if (nested < 0) {
+      props[m[type]] = m.content
+      continue
+    }
+
+    props[m[type].slice(nested + 1)] = m.content
+  }
+
+  // limit to only usefull meta: title, url, description and image
+  meta.image = props.image
+  props.url && (meta.url = props.url)
+  props.title && (meta.title = props.title)
+  props.description && (meta.description = props.description)
+
+  return meta
+}
+
 const db = new Database('entries.sqlite')
 db.run(`
 CREATE TABLE IF NOT EXISTS entry (
@@ -102,15 +209,9 @@ const fetchReddit = async ({ sub, threshold }) => {
         continue
       }
       if (type === 'link') {
-        const res = await fetch('https://api.peekalink.io', {
-          headers: { 'X-API-Key':  Bun.env.PEEKALINK_KEY },
-          method: 'POST',
-          body: JSON.stringify({ link: content }),
-        })
-        const meta = await res.json()
-        const url = meta.redirected ? meta.redirectionUrl : meta.url
-        content = [url, (meta.title || '').replaceAll('\n', ' '), (meta.description || '')].join('\n')
-        meta.image?.url && (image = meta.image.url)
+        const meta = await fetchMeta(content)
+        content = [meta.url, (meta.title || '').replaceAll('\n', ' '), (meta.description || '')].join('\n')
+        meta.image && (image = meta.image)
       }
       insertEntry.run(
         id,               // id
@@ -136,15 +237,9 @@ const fetchHN = async () => {
       continue
     }
 
-    const res = await fetch('https://api.peekalink.io', {
-      headers: { 'X-API-Key':  Bun.env.PEEKALINK_KEY },
-      method: 'POST',
-      body: JSON.stringify({ link: data.url }),
-    })
-    const meta = await res.json()
-    const url = meta.redirected ? meta.redirectionUrl : meta.url
-    const content = [url, (meta.title || '').replaceAll('\n', ' '), (meta.description || '')].join('\n')
-    const image = meta.image?.url || ''
+    const meta = await fetchMeta(data.url)
+    const content = [meta.url, (meta.title || '').replaceAll('\n', ' '), (meta.description || '')].join('\n')
+    const image = meta.image || ''
     insertEntry.run(
       id,                // id
       data.title,        // title
