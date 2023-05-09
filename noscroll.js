@@ -263,6 +263,9 @@ document.querySelector('ul').append(...initialEntries.slice(0, 24).map(makeEleme
 fetch('https://cdn.jsdelivr.net/gh/libreddit/libreddit-instances@master/instances.json')
   .then(async res => {
     const { instances } = await res.json()
+    const domain = 'https://libreddit.kutay.dev'
+    const links = document.getElementsByTagName('a')
+      .filter(a => a.href.startsWith(domain))
 
     const getInstanceVersionValue = ({ version }) => {
       const [major, minor = 0, patch = 0] = version.slice(1).split('.').map(Number)
@@ -273,15 +276,14 @@ fetch('https://cdn.jsdelivr.net/gh/libreddit/libreddit-instances@master/instance
 
     const controller = new AbortController()
     const latest = instances.filter(i => i.version === instances[0].version)
+    const testPage = links[0]?.href.slice(domain.length)
     const fastest = await Promise.race(latest.map(async ({ url }) => {
-      await fetch(url, { mode: 'no-cors', signal: controller.signal })
+      await fetch(`${url}${testPage}`, { mode: 'no-cors', signal: controller.signal })
       return url
     }))
     controller.abort()
 
-    const domain = 'https://libreddit.kutay.dev'
-    for (const a of document.getElementsByTagName('a')) {
-      if (!a.href.startsWith(domain)) continue
+    for (const a of links) {
       a.href = `${fastest}${a.href.slice(domain.length)}`
     }
   })
