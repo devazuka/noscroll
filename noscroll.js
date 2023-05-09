@@ -274,24 +274,42 @@ const fetchHN = async () => {
   }
 }
 
-for (const { handler, interval } of [
-  { interval: 12*H, handler: () => fetchReddit({ sub: '/r/rance',           threshold:    500 }) },
-  { interval:  3*H, handler: () => fetchReddit({ sub: '/r/ProgrammerHumor', threshold: 12_000 }) },
-  { interval: 12*H, handler: () => fetchReddit({ sub: '/r/rienabranler',    threshold:    150 }) },
-  { interval: 12*H, handler: () => fetchReddit({ sub: '/r/olkb',            threshold:    200 }) },
-  { interval: 15*M, handler: () => fetchReddit({ sub: '/r/all',             threshold: 30_000 }) },
-  { interval:  2*H, handler: fetchHN },
-]) {
+const sources = {
+  '/r/rance':           { interval: 12*H, threshold:    500 },
+  '/r/ProgrammerHumor': { interval:  3*H, threshold: 12_000 },
+  '/r/rienabranler':    { interval: 12*H, threshold:    150 },
+  '/r/olkb':            { interval: 12*H, threshold:    200 },
+  '/r/all':             { interval: 15*M, threshold: 30_000 },
+  'hackernews':         { interval:  2*H, threshold:    250 },
+}
+
+let initialUpdates = Promise.resolve()
+for (const [type, source] of Object.entries(sources)) {
+  const { interval, threshold } = source
   const update = async () => {
+    localStorage[type] = (source.lastUpdate = Date.now())
     try {
-      await handler()
+      if (type.startsWith('/r/')) {
+        await fetchReddit({ sub: type, threshold })
+      } else if (type === 'hackernews') {
+        await fetchHN({ threshold })
+      }
     } catch (err) {
-      console.error('handler failed', interval, err)
+      console.error('handler failed', { interval, type, threshold }, err)
     } finally {
       setTimeout(update, interval)
     }
   }
-  setTimeout(update, interval * Math.random())
+
+  if (localStorage[type]) {
+    source.lastUpdate = Number(localStorage[type])
+    const diff = interval - (Date.now() - source.lastUpdate)
+    diff < 0
+      ? (initialUpdates = initialUpdates.then(update))
+      : setTimeout(update, interval * Math.random())
+  } else {
+    initialUpdates = initialUpdates.then(update)
+  }
 }
 
 const HTMLInit = {
@@ -323,6 +341,30 @@ const templates = {
 }
 const hashChar = (s,c) => Math.imul(31, s) + c.charCodeAt(0) | 0
 const hash = str => Math.abs([...str].reduce(hashChar, 0x811c9dc5) % 36000) / 100
+const timeUnits = [
+  { label: 'y', size: 31536000 },
+  { label: 'w', size: 604800 },
+  { label: 'd', size: 86400 },
+  { label: 'h', size: 3600 },
+  { label: 'm', size: 60 },
+  { label: 's', size: 1 },
+]
+
+const formatedDuration = seconds => {
+  const parts = []
+  for (const { label, size } of timeUnits) {
+    const value = Math.floor(seconds / size)
+    if (value !== 0) {
+      parts.push(`${value}${label}`)
+      seconds -= value * size
+    }
+  }
+  if (seconds >= 1) {
+    parts.push(`${Math.round(seconds)}s`)
+  }
+  return parts.slice(0, 2).join(' ') || '0s'
+}
+
 const makeElement = entry => {
   const li = templates[entry.type].cloneNode(true)
   const [content] = li.getElementsByClassName('content')
@@ -330,8 +372,12 @@ const makeElement = entry => {
   const [title] = li.getElementsByClassName('title')
   const [link] = li.getElementsByClassName('link')
 
-  const scoreHue = Math.round(Math.min(entry.score, 180_000) / 500)
-  // TODO: probably use some kind of log scale for the colors ?
+  const refreshAt = sources.refreshAt || Date.now()
+  const { threshold } = sources[entry.source] || sources['/r/all']
+  const elapsed = Math.round(Math.max(refreshAt / 1000 - entry.at, 60*60))
+  const scorePerSec =  (entry.score / threshold) / (elapsed / 6e6)
+  entry.elapsed = elapsed
+  entry.threshold = threshold
 
   title.textContent = entry.title
   link.textContent = entry.source
@@ -343,8 +389,9 @@ const makeElement = entry => {
     ? '#ff6600'
     : `hsl(${hash(entry.source)}, 100%, 80%)`
 
-  score.style.backgroundColor = `hsl(${scoreHue}, 100%, 70%)`
+  score.style.backgroundColor = `hsl(${Math.min(scorePerSec, 360)}, 100%, 70%)`
   score.textContent = entry.score > 1000 ? `${Math.round(entry.score / 1000)}k` : entry.score
+  score.title = formatedDuration(elapsed)
   li.className = entry.source.toLowerCase()
   li.id = entry.id
   switch (entry.type) {
@@ -360,8 +407,9 @@ const makeElement = entry => {
       content.src = entry.content
       break
     } case 'link': {
-      content.src = entry.image
       const [url, name, description] = entry.content.split('\n')
+      content.src = entry.image
+      description && (content.title = description)
       title.href = url
       name && (title.title = name)
       // pass-through
@@ -506,6 +554,7 @@ img {
 <ul></ul>
 <nav></nav>
 <script>
+const sources = ${JSON.stringify(sources)}
 const initialEntries = ${initialEntries}
 ${JS}</script>
 </body>
