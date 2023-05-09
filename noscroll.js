@@ -110,12 +110,11 @@ const parseHTMLTags = (html, url) => {
 
   // limit to only usefull meta: title, url, description and image
   meta.image = props.image
-  props.url && (meta.url = props.url)
   props.title && (meta.title = props.title)
   props.description && (meta.description = props.description)
 
-  // convert image path to absolute URLs
-  meta.image?.[0] === '/' && (meta.image = `${new URL(props.url || url).origin}${meta.image}`)
+  // convert image path to absolute URLs, usually broken links though
+  meta.image?.[0] === '/' && (meta.image = `${new URL(url).origin}${meta.image}`)
   return meta
 }
 
@@ -143,7 +142,7 @@ CREATE TABLE IF NOT EXISTS entry (
   at INTEGER -- timestamp of the created time
 )`)
 db.query('PRAGMA vacuum')
-// db.query('PRAGMA journal_mode = WAL')
+db.query('PRAGMA journal_mode = WAL') // ignored by deno fs limitations
 db.query('PRAGMA synchronous = off')
 db.query('PRAGMA temp_store = memory')
 
