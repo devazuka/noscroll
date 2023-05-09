@@ -248,8 +248,8 @@ const fetchReddit = async ({ sub, threshold }) => {
   }
 }
 
-const fetchHN = async () => {
-  const params = new URLSearchParams({ numericFilters: 'points>=250', hitsPerPage: '500' })
+const fetchHN = async ({ threshold }) => {
+  const params = new URLSearchParams({ numericFilters: `points>=${threshold}`, hitsPerPage: '500' })
   const res = await fetch(`https://hn.algolia.com/api/v1/search_by_date?${params}`)
   for (const data of (await res.json()).hits) {
     const id = `hn:${data.objectID}`
@@ -375,7 +375,7 @@ const makeElement = entry => {
   const refreshAt = sources.refreshAt || Date.now()
   const { threshold } = sources[entry.source] || sources['/r/all']
   const elapsed = Math.round(Math.max(refreshAt / 1000 - entry.at, 60*60))
-  const scorePerSec =  (entry.score / threshold) / (elapsed / 6e6)
+  const scorePerSec =  (entry.score / threshold) / (elapsed / 7e6)
   entry.elapsed = elapsed
   entry.threshold = threshold
 
@@ -389,7 +389,7 @@ const makeElement = entry => {
     ? '#ff6600'
     : `hsl(${hash(entry.source)}, 100%, 80%)`
 
-  score.style.backgroundColor = `hsl(${Math.min(scorePerSec, 360)}, 100%, 70%)`
+  score.style.backgroundColor = `hsl(${Math.min(scorePerSec, 220)}, 100%, 70%)`
   score.textContent = entry.score > 1000 ? `${Math.round(entry.score / 1000)}k` : entry.score
   score.title = formatedDuration(elapsed)
   li.className = entry.source.toLowerCase()
