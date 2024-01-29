@@ -300,11 +300,11 @@ const fetchHN = async ({ threshold }) => {
 }
 
 const sources = {
-  '/r/rance':           { interval: 12*H, threshold:    500 },
-  '/r/ProgrammerHumor': { interval:  3*H, threshold: 12_000 },
-  '/r/rienabranler':    { interval: 12*H, threshold:    150 },
-  '/r/olkb':            { interval: 12*H, threshold:    200 },
-  '/r/all':             { interval: 15*M, threshold: 30_000 },
+  //'/r/rance':           { interval: 12*H, threshold:    500 },
+  //'/r/ProgrammerHumor': { interval:  3*H, threshold: 12_000 },
+  //'/r/rienabranler':    { interval: 12*H, threshold:    150 },
+  //'/r/olkb':            { interval: 12*H, threshold:    200 },
+  //'/r/all':             { interval: 15*M, threshold: 30_000 },
   'hackernews':         { interval:  2*H, threshold:    250 },
 }
 
