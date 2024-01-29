@@ -217,6 +217,7 @@ const updateRedditToken = async () => {
     body: `grant_type=password&username=kigiri&password=${Deno.env.get('REDDIT_PWD')}`,
   })
   const auth = await res.json()
+  console.log(auth)
   redditAuth = `${auth.token_type} ${auth.access_token}`
   setTimeout(updateRedditToken, auth.expires_in*S - 1*M)
   // TODO: cache in localStorage ?
