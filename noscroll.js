@@ -210,12 +210,14 @@ const updateRedditToken = async () => {
   const res = await fetch('https://www.reddit.com/api/v1/access_token', {
     method: 'POST',
     headers: {
-      Authorization: `Basic ${Deno.env.get('REDDIT_BOT')}`,
+      Authorization: `Basic ${Deno.env.get('REDDIT_BOT')}=`,
       'User-Agent': 'deno:_YkJcDPK6Wa3plOM0cH49w:v2024.01.25 (by /u/kigiri)',
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: `grant_type=password&username=kigiri&password=${Deno.env.get('REDDIT_PWD')}`,
   })
+  console.log(Deno.env.get('REDDIT_BOT'))
+  if (!res.ok) throw Error(res.statusText)
   const auth = await res.json()
   console.log(auth)
   redditAuth = `${auth.token_type} ${auth.access_token}`
@@ -223,6 +225,7 @@ const updateRedditToken = async () => {
   // TODO: cache in localStorage ?
 }
 await updateRedditToken()
+
 const fetchReddit = async ({ sub, threshold }) => {
   let after = ''
   main: while (true) {
@@ -242,7 +245,6 @@ const fetchReddit = async ({ sub, threshold }) => {
       Authorization: redditAuth,
       'User-Agent': 'deno:_YkJcDPK6Wa3plOM0cH49w:v2024.01.25 (by /u/kigiri)',
     }
-
     const res = await fetch(`https://oauth.reddit.com${sub}/top?${params}`, { headers })
     const result = await res.json()
     after = result.data.after
