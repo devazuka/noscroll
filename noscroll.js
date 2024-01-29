@@ -1,7 +1,10 @@
 import { DB as Database } from "https://deno.land/x/sqlite/mod.ts"
+// TODO: switch to -> import { Database } from "https://deno.land/x/sqlite3@0.10.0/mod.ts"
 
-const M = 1000*60
+const S = 1000
+const M = 60*S
 const H = 60*M
+const D = 24*H
 
 const decode = text => {
   try { return decodeURIComponent(text) }
@@ -202,22 +205,44 @@ const insertEntry = exec(`
   VALUES            ( ?,     ?,    ?,       ?,     ?,      ?,     ?,  ?)
 `)
 
+let redditAuth
+const updateRedditToken = async () => {
+  const res = await fetch('https://www.reddit.com/api/v1/access_token', {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${Deno.env.get('REDDIT_BOT')}`,
+      'User-Agent': 'deno:_YkJcDPK6Wa3plOM0cH49w:v2024.01.25 (by /u/kigiri)',
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: `grant_type=password&username=kigiri&password=${Deno.env.get('REDDIT_PWD')}`,
+  })
+  const auth = await res.json()
+  redditAuth = `${auth.token_type} ${auth.access_token}`
+  setTimeout(updateRedditToken, auth.expires_in*S - 1*M)
+  // TODO: cache in localStorage ?
+}
+await updateRedditToken()
 const fetchReddit = async ({ sub, threshold }) => {
   let after = ''
   main: while (true) {
     // - fetch top post of the day
     const params = new URLSearchParams({
-      include_unadvertisable: 1, // ?? not sure if needed
-      after,
-      include_over_18: 1,
-      raw_json: 1,
-      sort: 'top',
-      t: 'day',
+      t: 'week',
+      after, // fullname of a thing
+      //before, // fullname of a thing
+      //count, // a positive integer (default: 0)
+      limit: 100, // the maximum number of items desired (default: 25, maximum: 100)
+      //show,  // (optional) the string all
+      //sr_detail, // (optional) expand subreddits ?
     })
 
     console.log(sub, 'after', after)
-    const headers = { 'User-Agent': 'clembot' }
-    const res = await fetch(`https://www.reddit.com${sub}/top.json?${params}`, { headers })
+    const headers = {
+      Authorization: redditAuth,
+      'User-Agent': 'deno:_YkJcDPK6Wa3plOM0cH49w:v2024.01.25 (by /u/kigiri)',
+    }
+
+    const res = await fetch(`https://oauth.reddit.com${sub}/top?${params}`, { headers })
     const result = await res.json()
     after = result.data.after
     for (const { data } of result.data.children) {
