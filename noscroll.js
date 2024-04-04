@@ -218,7 +218,7 @@ const insertEntry = exec(`
 `)
 
 const insertRaw = exec(`
-  INSERT INTO entry (id, data)
+  INSERT INTO raw (id, data)
   VALUES            ( ?,    ?)
 `)
 
