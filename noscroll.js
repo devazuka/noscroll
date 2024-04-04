@@ -144,6 +144,12 @@ CREATE TABLE IF NOT EXISTS entry (
   score INTEGER, -- metric count (upvotes ?)
   at INTEGER -- timestamp of the created time
 )`)
+db.query(`
+CREATE TABLE IF NOT EXISTS raw (
+  id TEXT PRIMARY KEY, -- id (ex: h:33912060, r:zjxusx)
+  data TEXT NOT NULL -- JSON response body for debug
+)
+`)
 db.query('PRAGMA vacuum')
 db.query('PRAGMA journal_mode = WAL') // ignored by deno fs limitations
 db.query('PRAGMA synchronous = off')
@@ -172,6 +178,12 @@ const getLast25 = all(`
   WHERE rowid <= ?
   ORDER BY rowid DESC
   LIMIT 25
+`)
+const getRawData = get(`
+  SELECT data
+  FROM raw
+  WHERE id = ?
+  LIMIT 1
 `)
 
 const videoExt = new Set(['mp4','webm','mov'])
@@ -203,6 +215,11 @@ const updateScore = exec(`UPDATE entry SET score = ? WHERE id = ?`)
 const insertEntry = exec(`
   INSERT INTO entry (id, title, type, content, image, score, source, at)
   VALUES            ( ?,     ?,    ?,       ?,     ?,      ?,     ?,  ?)
+`)
+
+const insertRaw = exec(`
+  INSERT INTO entry (id, data)
+  VALUES            ( ?,    ?)
 `)
 
 let redditAuth
@@ -270,6 +287,7 @@ const fetchReddit = async ({ sub, threshold }) => {
         data.subreddit,   // source
         data.created_utc, // at
       ])
+      insertRaw([id, JSON.stringify(data)])
     }
   }
 }
@@ -643,6 +661,10 @@ const handleRequest = async pathname => {
         JSON.stringify(entries),
         entries.length > 24 ? JSONInit : JSONInitNoCache,
       )
+    }
+    if (action === 'debug') {
+      const data = getRawData([id])?.data
+      return data ? new Response(data, JSONInit) : _404
     }
     const body = generateIndex(JSON.stringify(entries))
     return new Response(body, HTMLInit)
