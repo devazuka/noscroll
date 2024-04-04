@@ -586,7 +586,7 @@ img {
 <template id="image">
   <li>
     <h2><span class="score">0</span> <a class="link" href="">🔗</a> <span class="title"> </span></h2>
-    <img class="content" src="#" onerror="this.onerror=null; this.remove()">
+    <img class="content" src="#" onerror="this.onerror=null; console.log(this.src); this.remove()">
   <li>
 </template>
 <template id="video">
