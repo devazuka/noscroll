@@ -453,7 +453,7 @@ const makeElement = entry => {
       }
       break
     } case 'image': {
-      content.src = entry.content
+      content.src = decodeHTMLEntities(entry.content)
       break
     } case 'link': {
       const [url, name, description] = entry.content.split('\n')
