@@ -409,6 +409,11 @@ const formatedDuration = seconds => {
   return parts.slice(0, 2).join(' ') || '0s'
 }
 
+const parser = new DOMParser()
+const decodeHTMLEntities = input => {
+  return parser.parseFromString(input, "text/html").documentElement.textContent
+}
+
 const makeElement = entry => {
   const li = templates[entry.type].cloneNode(true)
   const [content] = li.getElementsByClassName('content')
@@ -444,7 +449,7 @@ const makeElement = entry => {
       if (url.pathname.endsWith('.m3u8')) {
         content.dataset.hls = entry.content
       } else {
-        content.src = decodeURIComponent(entry.content)
+        content.src = decodeHTMLEntities(entry.content)
       }
       break
     } case 'image': {
@@ -452,13 +457,13 @@ const makeElement = entry => {
       break
     } case 'link': {
       const [url, name, description] = entry.content.split('\n')
-      content.src = decodeURIComponent(entry.image)
+      content.src = decodeHTMLEntities(entry.image)
       description && (content.title = description)
       title.href = url
       name && (title.title = name)
       // pass-through
     } default: {
-      li.style.backgroundImage = `url('${decodeURIComponent(entry.image)}')`
+      li.style.backgroundImage = `url('${decodeHTMLEntities(entry.image)}')`
       break
     }
   }
