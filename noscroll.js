@@ -444,7 +444,7 @@ const makeElement = entry => {
       if (url.pathname.endsWith('.m3u8')) {
         content.dataset.hls = entry.content
       } else {
-        content.src = entry.content
+        content.src = decodeURIComponent(entry.content)
       }
       break
     } case 'image': {
@@ -452,13 +452,13 @@ const makeElement = entry => {
       break
     } case 'link': {
       const [url, name, description] = entry.content.split('\n')
-      content.src = entry.image
+      content.src = decodeURIComponent(entry.image)
       description && (content.title = description)
       title.href = url
       name && (title.title = name)
       // pass-through
     } default: {
-      li.style.backgroundImage = `url('${entry.image}')`
+      li.style.backgroundImage = `url('${decodeURIComponent(entry.image)}')`
       break
     }
   }
