@@ -324,7 +324,7 @@ const sources = {
   '/r/rienabranler':    { interval: 12*H, threshold:    150 },
   '/r/olkb':            { interval: 12*H, threshold:    200 },
   '/r/all':             { interval: 15*M, threshold: 30_000 },
-  'hackernews':         { interval:  2*H, threshold:    250 },
+  hackernews:           { interval:  2*H, threshold:    250 },
 }
 
 let initialUpdates = Promise.resolve()
@@ -375,8 +375,6 @@ const JSONInitNoCache = {
   }),
 }
 const JS = String(() => {
-const DOMAIN = localStorage.DOMAIN || 'https://libreddit.kutay.dev'
-
 const templates = {
   video: document.getElementById('video').content.firstElementChild,
   image: document.getElementById('image').content.firstElementChild,
@@ -431,7 +429,7 @@ const makeElement = entry => {
   title.textContent = entry.title
   link.textContent = entry.source
   link.href = entry.id.startsWith('r:')
-    ? `${DOMAIN}/r/${entry.source}/comments/${entry.id.slice(2)}?sort=top`
+    ? `https://old.reddit.com/r/${entry.source}/comments/${entry.id.slice(2)}?sort=top`
     : `https://news.ycombinator.com/item?id=${entry.id.slice(3)}`
 
   link.style.backgroundColor = entry.source === 'hackernews'
@@ -457,11 +455,18 @@ const makeElement = entry => {
       break
     } case 'link': {
       const [url, name, description] = entry.content.split('\n')
-      content.src = decodeHTMLEntities(entry.image)
-      description && (content.title = description)
+      if (entry.image) {
+        content.src = decodeHTMLEntities(entry.image)
+        description && (content.title = decodeHTMLEntities(description))
+      } else if (description) {
+        content.parentElement.classList.add('link-description')
+        content.parentElement.append(decodeHTMLEntities(description))
+        content.remove()
+      } else {
+        content.parentElement.remove()
+      }
       title.href = url
-      name && (title.title = name)
-      // pass-through
+      name && (title.title = decodeHTMLEntities(name))
     } default: {
       li.style.backgroundImage = `url('${decodeHTMLEntities(entry.image)}')`
       break
@@ -477,34 +482,6 @@ if (initialEntries.length > 24) {
   document.querySelector('nav').append(a)
 }
 document.querySelector('ul').append(...initialEntries.slice(0, 24).map(makeElement))
-
-localStorage.DOMAIN || fetch('https://cdn.jsdelivr.net/gh/libreddit/libreddit-instances@master/instances.json')
-  .then(async res => {
-    const { instances } = await res.json()
-    const links = [...document.getElementsByTagName('a')]
-      .filter(a => a.href.startsWith(DOMAIN))
-
-    const getInstanceVersionValue = ({ version }) => {
-      const [major, minor = 0, patch = 0] = version.slice(1).split('.').map(Number)
-      return major * 10000 + minor + (patch / 10000)
-    }
-
-    instances.sort((a, b) => getInstanceVersionValue(b) - getInstanceVersionValue(a))
-
-    const controller = new AbortController()
-    const latest = instances.filter(i => i.version === instances[0].version)
-    const testPage = links[0]?.href.slice(DOMAIN.length)
-    const fastest = await Promise.race(latest.map(async ({ url }) => {
-      await fetch(`${url}${testPage}`, { mode: 'no-cors', signal: controller.signal })
-      return url
-    }))
-    controller.abort()
-
-    localStorage.DOMAIN = fastest
-    for (const a of links) {
-      a.href = `${fastest}${a.href.slice(DOMAIN.length)}`
-    }
-  })
 }).slice(7, -1)
 
 const generateIndex = initialEntries => `
@@ -516,9 +493,8 @@ const generateIndex = initialEntries => `
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📜</text></svg>">
   <title>Noscroll</title>
 <style>
-ul {
-  font-familly: monospace;
-}
+:root { color-scheme: dark }
+ul { font-familly: monospace }
 body, li, ul { margin: 0 }
 body, a { color: #a996c6 }
 body {
@@ -550,12 +526,9 @@ nav > a {
 li {
   background-color: #3b3642;
   margin-top: 20px;
-  border-radius: 10px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  outline: 2px solid #fff1;
-  outline-offset: -2px;
 }
 body { padding: 50px }
 video {
@@ -568,11 +541,17 @@ img {
   max-height: calc(100vh - 50px);
 }
 .link { font-weight: normal; font-style: italic }
+.link .reddit-link {
+  background-image: url('data:image/svg+xml,<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="%23FF4500" d="M12 0C5.373 0 0 5.373 0 12c0 3.314 1.343 6.314 3.515 8.485l-2.286 2.286C.775 23.225 1.097 24 1.738 24H12c6.627 0 12-5.373 12-12S18.627 0 12 0Zm4.388 3.199c1.104 0 1.999.895 1.999 1.999 0 1.105-.895 2-1.999 2-.946 0-1.739-.657-1.947-1.539v.002c-1.147.162-2.032 1.15-2.032 2.341v.007c1.776.067 3.4.567 4.686 1.363.473-.363 1.064-.58 1.707-.58 1.547 0 2.802 1.254 2.802 2.802 0 1.117-.655 2.081-1.601 2.531-.088 3.256-3.637 5.876-7.997 5.876-4.361 0-7.905-2.617-7.998-5.87-.954-.447-1.614-1.415-1.614-2.538 0-1.548 1.255-2.802 2.803-2.802.645 0 1.239.218 1.712.585 1.275-.79 2.881-1.291 4.64-1.365v-.01c0-1.663 1.263-3.034 2.88-3.207.188-.911.993-1.595 1.959-1.595Zm-8.085 8.376c-.784 0-1.459.78-1.506 1.797-.047 1.016.64 1.429 1.426 1.429.786 0 1.371-.369 1.418-1.385.047-1.017-.553-1.841-1.338-1.841Zm7.406 0c-.786 0-1.385.824-1.338 1.841.047 1.017.634 1.385 1.418 1.385.785 0 1.473-.413 1.426-1.429-.046-1.017-.721-1.797-1.506-1.797Zm-3.703 4.013c-.974 0-1.907.048-2.77.135-.147.015-.241.168-.183.305.483 1.154 1.622 1.964 2.953 1.964 1.33 0 2.47-.81 2.953-1.964.057-.137-.037-.29-.184-.305-.863-.087-1.795-.135-2.769-.135Z"/></svg>');
+}
 .link::before {
   content: '/r/';
   color: #0008;
   letter-spacing: -0.2em;
   margin-right: 0.2em;
+}
+.link-description {
+  padding: 1em;
 }
 </style>
 </head>
@@ -580,7 +559,7 @@ img {
 <template id="link">
   <li>
     <h2><span class="score">0</span> <a class="link" href="">🔗</a> <a class="title" href=""> </a></h2>
-    <img class="content" src="#" onerror="console.log">
+    <div><img class="content" src="#" onerror="console.log"></div>
   <li>
 </template>
 <template id="text">
@@ -608,8 +587,8 @@ const initialEntries = ${initialEntries}
 ${JS}</script>
 </body>
 <script type="module">
-// import Hls from "https://cdn.skypack.dev/hls.js?min"
-import Hls from 'https://cdn.skypack.dev/-/hls.js@v1.2.9-t6kzxjKYu3APlTyoQcrP/dist=es2019,mode=imports,min/optimized/hlsjs.js'
+// update check: https://cdn.skypack.dev/hls.js -> take the /pin/
+import Hls from 'https://cdn.skypack.dev/-/hls.js@v1.5.15-OO2R9lbJyhFHQ1gGE08P/dist=es2020,mode=imports,min/optimized/hlsjs.js'
 
 for (const video of document.querySelectorAll('video[data-hls]')) {
   if (video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -703,3 +682,35 @@ Deno.serve({
     }
   }
 })
+
+// __THE 4 LAWS__:
+// 1) Order of entries must be fixed
+//    -> No FOMO
+//
+// 2) Quality must be assessed somehow (vote count, trusted source)
+//    -> Stay conscious about the scrolling
+//
+// 3) Limit the display of elements
+//    -> Stay conscious about the scrolling
+//
+// 4) Limit the update rate of elements
+//    -> Spam refresh should not be rewarded      
+
+// TODO:
+// - Media query for no padding on mobile / rounded corners
+// - Refresh on scroll up
+// - Handle multiple image
+// - Fix not playing videos
+// - Fix not showing images
+// - Generate thumbnails for website not showing
+// - Prev page navigation
+// - Inline comments support
+// - Add local metrics (ex: refresh / days, duration of window active / day)
+// - Save everything (image, comments, video, even webpage)
+// - Add a ladder to climb paywalls
+// - Dump into meili and add a search bar
+// - Image descriptions with AI
+// - Video descriptions with AI
+// - Vector search
+// - Youtube Support
+// - TikTok Support
