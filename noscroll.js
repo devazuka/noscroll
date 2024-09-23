@@ -192,6 +192,14 @@ const getUrl = url => { try { return new URL(url) } catch {} }
 
 const getContentAndType = data => {
   if (data.is_video) return { type: 'video', content: data.media?.reddit_video?.hls_url || '???' }
+
+  if (data.gallery_data?.items?.length > 1) {
+    return {
+      type: 'gallery',
+      content: gallery_data.items.map(({ media_id }) => data.media_metadata[media_id].s.u).join('\n'),
+    }
+  }
+
   const previewImage = data.preview?.images?.[0]
   if (previewImage) {
     if (data.domain === 'gfycat.com' || data.url.endsWith('.gifv')) {
@@ -376,6 +384,7 @@ const JSONInitNoCache = {
 }
 const JS = String(() => {
 const templates = {
+  gallery: document.getElementById('gallery').content.firstElementChild,
   video: document.getElementById('video').content.firstElementChild,
   image: document.getElementById('image').content.firstElementChild,
   text: document.getElementById('text').content.firstElementChild,
@@ -452,6 +461,15 @@ const makeElement = entry => {
       break
     } case 'image': {
       content.src = decodeHTMLEntities(entry.content)
+      break
+    } case 'gallery': {
+      content.append(
+        ...entry.content.split('\n').map(src => {
+          const img = document.createElement('img')
+          img.src = decodeHTMLEntities(src)
+          return img
+        })
+      )
       break
     } case 'link': {
       const [url, name, description] = entry.content.split('\n')
@@ -530,7 +548,7 @@ li {
   display: flex;
   flex-direction: column;
 }
-body { padding: 50px }
+body { padding-bottom: 50px }
 video {
   max-height: 840px;
 }
@@ -571,6 +589,12 @@ img {
   <li>
     <h2><span class="score">0</span> <a class="link" href="">🔗</a> <span class="title"> </span></h2>
     <img class="content" src="#" onerror="console.log">
+  <li>
+</template>
+<template id="gallery">
+  <li>
+    <h2><span class="score">0</span> <a class="link" href="">🔗</a> <span class="title"> </span></h2>
+    <div class="content" src="#" onerror="console.log">
   <li>
 </template>
 <template id="video">
@@ -699,10 +723,12 @@ Deno.serve({
 // TODO:
 // - Media query for no padding on mobile / rounded corners
 // - Refresh on scroll up
-// - Handle multiple image
 // - Fix not playing videos
 // - Fix not showing images
 // - Generate thumbnails for website not showing
+//   - if image do not exist & verify that the image is indeed, an image
+//   - check if domain is different, if so, check if image exist when replacing the domain to the one of the link
+//   - if still no image, use AI to generate a 3 line summary, ask it to generate an image for it lol.
 // - Prev page navigation
 // - Inline comments support
 // - Add local metrics (ex: refresh / days, duration of window active / day)
