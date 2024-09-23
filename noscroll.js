@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS entry (
   content TEXT NOT NULL, -- variable depend on type
   title TEXT NOT NULL,
   source TEXT NOT NULL, -- subreddit | hackernews
-  type TEXT NOT NULL CHECK(type IN ('image', 'video', 'link', 'text')),
+  type TEXT NOT NULL, -- image | video | link | text | gallery
   image TEXT, -- image url
   score INTEGER, -- metric count (upvotes ?)
   at INTEGER -- timestamp of the created time
