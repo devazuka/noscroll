@@ -196,7 +196,7 @@ const getContentAndType = data => {
   if (data.gallery_data?.items?.length > 1) {
     return {
       type: 'gallery',
-      content: gallery_data.items.map(({ media_id }) => data.media_metadata[media_id].s.u).join('\n'),
+      content: data.gallery_data.items.map(({ media_id }) => data.media_metadata[media_id].s.u).join('\n'),
     }
   }
 
@@ -608,6 +608,14 @@ img {
 <script>
 const sources = ${JSON.stringify(sources)}
 const initialEntries = ${initialEntries}
+const reloadNavigation = performance
+  .getEntriesByType('navigation')
+  .find((nav) => nav.type === 'reload')
+
+if (reloadNavigation) {
+  window.location.href = '/'
+}
+
 ${JS}</script>
 </body>
 <script type="module">
@@ -721,14 +729,12 @@ Deno.serve({
 //    -> Spam refresh should not be rewarded      
 
 // TODO:
-// - Media query for no padding on mobile / rounded corners
-// - Refresh on scroll up
 // - Fix not playing videos
 // - Fix not showing images
 // - Generate thumbnails for website not showing
-//   - if image do not exist & verify that the image is indeed, an image
-//   - check if domain is different, if so, check if image exist when replacing the domain to the one of the link
-//   - if still no image, use AI to generate a 3 line summary, ask it to generate an image for it lol.
+//   > if image do not exist & verify that the image is indeed, an image
+//   > check if domain is different, if so, check if image exist when replacing the domain to the one of the link
+//   > if still no image, use AI to generate a 3 line summary, ask it to generate an image for it lol.
 // - Prev page navigation
 // - Inline comments support
 // - Add local metrics (ex: refresh / days, duration of window active / day)
