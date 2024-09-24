@@ -196,6 +196,12 @@ const getRowIdOf = get(`
   WHERE id = ?
   LIMIT 1
 `)
+const getEntry = get(`
+  SELECT *
+  FROM entry
+  WHERE id = ?
+  LIMIT 1
+`)
 const getLast25 = all(`
   SELECT *
   FROM entry
@@ -256,7 +262,7 @@ const insertEntry = exec(`
 
 const insertRaw = exec(`
   INSERT INTO raw (id, data)
-  VALUES            ( ?,    ?)
+  VALUES          ( ?,    ?)
 `)
 
 let redditAuth
@@ -732,8 +738,11 @@ const handleRequest = async pathname => {
       )
     }
     if (action === 'debug') {
+      const entry = getEntry([id])
+      if (!entry) return _404
       const data = getRawData([id])?.data
-      return data ? new Response(data, JSONInit) : _404
+      if (!data) return new Response(JSON.stringify({ entry }), JSONInit)
+      return new Response(JSON.stringify({ entry, ...JSON.parse(data) }), JSONInit)
     }
     const body = generateIndex(JSON.stringify(entries))
     return new Response(body, HTMLInit)
