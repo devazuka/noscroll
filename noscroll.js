@@ -216,8 +216,8 @@ const getRawData = get(`
   LIMIT 1
 `)
 
-const videoExt = new Set(['mp4','webm','mov'])
-const imageExt = new Set(['jpg','webp','gif', 'png', 'avif', 'jpeg'])
+const videoExt = new Set(['mp4','webm','mov','m3u8'])
+const imageExt = new Set(['jpg','webp','gif','png','avif','jpeg'])
 const getUrl = url => { try { return new URL(url) } catch {} }
 
 const getContentAndType = data => {
@@ -229,6 +229,9 @@ const getContentAndType = data => {
       content: data.gallery_data.items.map(({ media_id }) => data.media_metadata[media_id].s.u).join('\n'),
     }
   }
+
+  const previewVideo = data.reddit_video_preview
+  if (previewVideo) return { type: 'video', content: previewVideo.hls_url }
 
   const previewImage = data.preview?.images?.[0]
   if (previewImage) {
