@@ -580,9 +580,6 @@ const generateIndex = initialEntries => `
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📜</text></svg>">
   <title>Noscroll</title>
 <style>
-/* youtube-embed-lite*/
-lite-youtube{background-color:#000;position:relative;display:block;contain:content;background-position:50%;background-size:cover;cursor:pointer;max-width:720px}lite-youtube:before{content:attr(data-title);display:block;position:absolute;top:0;background-image:linear-gradient(180deg,rgba(0,0,0,.67),rgba(0,0,0,.54) 14%,rgba(0,0,0,.15) 54%,rgba(0,0,0,.05) 72%,transparent 94%);height:99px;width:100%;font-family:YouTube Noto,Roboto,Arial,Helvetica,sans-serif;color:#eee;text-shadow:0 0 2px rgba(0,0,0,.5);font-size:18px;padding:25px 20px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;box-sizing:border-box}lite-youtube:hover:before{color:#fff}lite-youtube:after{content:"";display:block;padding-bottom:56.25%}lite-youtube>iframe{top:0;left:0}lite-youtube>.lty-playbtn,lite-youtube>iframe{width:100%;height:100%;position:absolute;border:0}lite-youtube>.lty-playbtn{display:block;background:no-repeat 50%/68px 48px;background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 68 48"><path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55c-2.93.78-4.63 3.26-5.42 6.19C.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z" fill="red"/><path d="M45 24 27 14v20" fill="white"/></svg>');cursor:pointer;z-index:1;filter:grayscale(100%);transition:filter .1s cubic-bezier(0,0,.2,1)}lite-youtube .lty-playbtn:focus,lite-youtube:hover>.lty-playbtn{filter:none}lite-youtube.lyt-activated{cursor:unset}lite-youtube.lyt-activated:before,lite-youtube.lyt-activated>.lty-playbtn{opacity:0;pointer-events:none}.lyt-visually-hidden{clip:rect(0 0 0 0);clip-path:inset(50%);height:1px;overflow:hidden;position:absolute;white-space:nowrap;width:1px}
-
 :root { color-scheme: dark }
 ul { font-familly: monospace }
 body, li, ul { margin: 0 }
@@ -683,7 +680,6 @@ div.content.text {
 </template>
 <ul></ul>
 <nav></nav>
-<script>${'class LiteYTEmbed extends HTMLElement{connectedCallback(){this.videoId=this.getAttribute("videoid");let e=this.querySelector(".lty-playbtn");if(this.playLabel=e&&e.textContent.trim()||this.getAttribute("playlabel")||"Play",this.dataset.title=this.getAttribute("title")||"",this.style.backgroundImage||(this.style.backgroundImage=`url("https://i.ytimg.com/vi/${this.videoId}/hqdefault.jpg")`,this.upgradePosterImage()),e||((e=document.createElement("button")).type="button",e.classList.add("lty-playbtn"),this.append(e)),!e.textContent){let t=document.createElement("span");t.className="lyt-visually-hidden",t.textContent=this.playLabel,e.append(t)}this.addNoscriptIframe(),"A"===e.nodeName&&(e.removeAttribute("href"),e.setAttribute("tabindex","0"),e.setAttribute("role","button"),e.addEventListener("keydown",e=>{("Enter"===e.key||" "===e.key)&&(e.preventDefault(),this.activate())})),this.addEventListener("pointerover",LiteYTEmbed.warmConnections,{once:!0}),this.addEventListener("focusin",LiteYTEmbed.warmConnections,{once:!0}),this.addEventListener("click",this.activate),this.needsYTApi=this.hasAttribute("js-api")||navigator.vendor.includes("Apple")||navigator.userAgent.includes("Mobi")}static addPrefetch(e,t,i){let a=document.createElement("link");a.rel=e,a.href=t,i&&(a.as=i),document.head.append(a)}static warmConnections(){LiteYTEmbed.preconnected||(LiteYTEmbed.addPrefetch("preconnect","https://www.youtube-nocookie.com"),LiteYTEmbed.addPrefetch("preconnect","https://www.google.com"),LiteYTEmbed.addPrefetch("preconnect","https://googleads.g.doubleclick.net"),LiteYTEmbed.addPrefetch("preconnect","https://static.doubleclick.net"),LiteYTEmbed.preconnected=!0)}fetchYTPlayerApi(){window.YT||window.YT&&window.YT.Player||(this.ytApiPromise=new Promise((e,t)=>{var i=document.createElement("script");i.src="https://www.youtube.com/iframe_api",i.async=!0,i.onload=t=>{YT.ready(e)},i.onerror=t,this.append(i)}))}async getYTPlayer(){return this.playerPromise||await this.activate(),this.playerPromise}async addYTPlayerIframe(){this.fetchYTPlayerApi(),await this.ytApiPromise;let e=document.createElement("div");this.append(e);let t=Object.fromEntries(this.getParams().entries());this.playerPromise=new Promise(i=>{let a=new YT.Player(e,{width:"100%",videoId:this.videoId,playerVars:t,events:{onReady:e=>{e.target.playVideo(),i(a)}}})})}addNoscriptIframe(){let e=this.createBasicIframe(),t=document.createElement("noscript");t.innerHTML=e.outerHTML,this.append(t)}getParams(){let e=new URLSearchParams(this.getAttribute("params")||[]);return e.append("autoplay","1"),e.append("playsinline","1"),e}async activate(){if(this.classList.contains("lyt-activated"))return;if(this.classList.add("lyt-activated"),this.needsYTApi)return this.addYTPlayerIframe(this.getParams());let e=this.createBasicIframe();this.append(e),e.focus()}createBasicIframe(){let e=document.createElement("iframe");return e.width=560,e.height=315,e.title=this.playLabel,e.allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture",e.allowFullscreen=!0,e.src=`https://www.youtube-nocookie.com/embed/${encodeURIComponent(this.videoId)}?${this.getParams().toString()}`,e}upgradePosterImage(){setTimeout(()=>{let e=`https://i.ytimg.com/vi_webp/${this.videoId}/sddefault.webp`,t=new Image;t.fetchPriority="low",t.referrerpolicy="origin",t.src=e,t.onload=t=>{90==t.target.naturalHeight&&120==t.target.naturalWidth||(this.style.backgroundImage=`url("${e}")`)}},100)}}customElements.define("lite-youtube",LiteYTEmbed)'}</script>
 <script>
 const sources = ${JSON.stringify(sources)}
 const initialEntries = ${initialEntries}
@@ -698,8 +694,7 @@ if (reloadNavigation) {
 ${JS}</script>
 </body>
 <script type="module">
-// update check: https://cdn.skypack.dev/hls.js -> take the /pin/
-import Hls from 'https://cdn.skypack.dev/-/hls.js@v1.5.15-OO2R9lbJyhFHQ1gGE08P/dist=es2020,mode=imports,min/optimized/hlsjs.js'
+import Hls from 'https://cdn.jsdelivr.net/npm/hls.js@v1.5.15/+esm'
 
 for (const video of document.querySelectorAll('video[data-hls]')) {
   if (video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -716,6 +711,7 @@ for (const video of document.querySelectorAll('video[data-hls]')) {
 }
 
 </script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@justinribeiro/lite-youtube@1.5.0"></script>
 </html>`
 
 const updateMeta = exec(`UPDATE entry SET content = ?, image = ? WHERE id = ?`)
