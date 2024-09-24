@@ -538,13 +538,8 @@ const makeElement = entry => {
         if (host === 'twitter.com' || host === 'x.com') {
           tweetid = pathname.split('/status/')[1]
           if (!window.twttr) {
-            window.twttr = { _e: [] }
+            window.twttr = {}
             twttr.loader = new Promise((resolve, reject) => {
-              twttr.ready = (f) => {
-                console.log('ready called', {f })
-                twttr._e.push(f)
-                resolve()
-              }
               const s = document.createElement('script')
               s.id = 'twitter-wjs'
               s.async = true
@@ -552,12 +547,11 @@ const makeElement = entry => {
               s.charset = 'utf-8'
               s.onerror = () => reject(Error('unable to load twitter widget'))
               s.onload = () => {
-                console.log('wesh')
                 const i = setInterval(() => {
                   if (twttr.init !== true) return
                   resolve(twttr)
                   clearInterval(i)
-                }, 100)
+                }, 50)
               }
               const ps = document.getElementsByTagName('script')[0]
               ps.parentNode.insertBefore(s, ps)
@@ -569,10 +563,9 @@ const makeElement = entry => {
         content.src =  `https://i3.ytimg.com/vi/${videoid}/maxresdefault.jpg`
         description && (content.title = decodeHTMLEntities(description))
       } else if (tweetid) {
-        twttr.loader.then(() => {
-          console.log('LOADED!')
+        twttr.loader.then(({ widgets }) => {
           const opts = { theme: 'dark', lang: 'en', dnt: true, align: 'center' }
-          twttr.widgets.createTweet(tweetid, content.parentElement, opts)
+          widgets.createTweet(tweetid, content.parentElement, opts)
           content.remove()
         })
       } else if (entry.image) {
@@ -613,7 +606,6 @@ const generateIndex = initialEntries => `
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📜</text></svg>">
   <title>Noscroll</title>
 <style>
-:root { color-scheme: dark }
 ul { font-familly: monospace }
 body, li, ul { margin: 0 }
 body, a { color: #a996c6 }
