@@ -459,7 +459,6 @@ const decodeHTMLEntities = input => {
   return parser.parseFromString(input, "text/html").documentElement.textContent
 }
 
-let tweeterLoaded
 const makeElement = entry => {
   const li = templates[entry.type].cloneNode(true)
   const [content] = li.getElementsByClassName('content')
@@ -538,13 +537,31 @@ const makeElement = entry => {
         }
         if (host === 'twitter.com' || host === 'x.com') {
           tweetid = pathname.split('/status/')[1]
-          if (!tweeterLoaded) {
-            tweeterLoaded = true
-            const s = document.createElement('script')
-            s.async = true
-            s.src = 'https://platform.twitter.com/widgets.js'
-            s.charset = 'utf-8'
-            document.body.append(s)
+          if (!window.twttr) {
+            window.twttr = { _e: [] }
+            twttr.loader = new Promise((resolve, reject) => {
+              twttr.ready = (f) => {
+                console.log('ready called', {f })
+                twttr._e.push(f)
+                resolve()
+              }
+              const s = document.createElement('script')
+              s.id = 'twitter-wjs'
+              s.async = true
+              s.src = 'https://platform.twitter.com/widgets.js'
+              s.charset = 'utf-8'
+              s.onerror = () => reject(Error('unable to load twitter widget'))
+              s.onload = () => {
+                console.log('wesh')
+                const i = setInterval(() => {
+                  if (twttr.init !== true) return
+                  resolve(twttr)
+                  clearInterval(i)
+                }, 100)
+              }
+              const ps = document.getElementsByTagName('script')[0]
+              ps.parentNode.insertBefore(s, ps)
+            })
           }
         }
       } catch {}
@@ -552,16 +569,12 @@ const makeElement = entry => {
         content.src =  `https://i3.ytimg.com/vi/${videoid}/maxresdefault.jpg`
         description && (content.title = decodeHTMLEntities(description))
       } else if (tweetid) {
-        const blockquote = document.createElement('blockquote')
-        const a = document.createElement('a')
-        a.href = url
-        blockquote.className = 'twitter-tweet'
-        // blockquote.dataset.dnt = 'true'
-        blockquote.dataset.lang = 'en'
-        blockquote.dataset.theme = 'dark'
-        blockquote.append(a)
-        content.parentElement.append(blockquote)
-        content.remove()
+        twttr.loader.then(() => {
+          console.log('LOADED!')
+          const opts = { theme: 'dark', lang: 'en', dnt: true, align: 'center' }
+          twttr.widgets.createTweet(tweetid, content.parentElement, opts)
+          content.remove()
+        })
       } else if (entry.image) {
         content.src = decodeHTMLEntities(entry.image)
         description && (content.title = decodeHTMLEntities(description))
