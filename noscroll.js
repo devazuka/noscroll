@@ -229,6 +229,9 @@ const getContentAndType = data => {
     if (data.domain === 'gfycat.com' || data.url.endsWith('.gifv')) {
       return { type: 'image', content: data.url }
     }
+    if (previewImage.variants?.mp4) {
+      return { type: 'video', content: previewImage.variants.mp4.source.url }
+    }
     return { type: 'image', content: previewImage.source.url }
   }
   const mediaImage = data.media_metadata && Object.values(data.media_metadata)[0]
