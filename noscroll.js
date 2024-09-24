@@ -556,7 +556,7 @@ const makeElement = entry => {
         const a = document.createElement('a')
         a.href = url
         blockquote.className = 'twitter-tweet'
-        blockquote.dataset.dnt = 'true'
+        // blockquote.dataset.dnt = 'true'
         blockquote.dataset.lang = 'en'
         blockquote.dataset.theme = 'dark'
         blockquote.append(a)
