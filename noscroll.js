@@ -116,9 +116,16 @@ const parseHTMLTags = (html, url) => {
   props.title && (meta.title = props.title)
   props.description && (meta.description = props.description)
 
-  // convert image path to absolute URLs, usually broken links though
-  meta.image?.[0] === '/' && (meta.image = `${new URL(url).origin}${meta.image}`)
   return meta
+}
+
+const isValidImageUrl = async imageUrl => {
+  const controller = new AbortController()
+  const signal = controller.signal
+  const { ok, headers } = await fetch(imageUrl, { signal })
+  // we don't want to actually load up all the image, so we abort here
+  controller.abort()
+  return ok && headers.get('content-type').startsWith('image/')
 }
 
 const fetchMeta = async url => {
@@ -126,7 +133,24 @@ const fetchMeta = async url => {
   try {
     const res = await fetch(url)
     const text = await res.text()
-    return parseHTMLTags(text, res.url)
+    const meta = parseHTMLTags(text, res.url)
+    if (meta.image) {
+      try {
+        let imageUrl = new URL(meta.image, res.url)
+        if (!(await isValidImageUrl(imageUrl))) {
+          imageUrl = new URL(`${imageUrl.pathname}${imageUrl.search}${imageUrl.hash}`, res.url)
+          if (!(await isValidImageUrl(imageUrl))) {
+            console.log('invalid meta image url:', imageUrl.href)
+            throw Error('failed to find valid image')
+          }
+        }
+        meta.image = imageUrl.href
+      } catch {
+        // TODO: generate svg / AI image for that case ?
+        meta.image = undefined
+      }
+    }
+    return meta
   } catch {
     return {}
   }
