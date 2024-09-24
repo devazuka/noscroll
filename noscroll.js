@@ -758,6 +758,18 @@ const handleRequest = async pathname => {
       : { status: 204 })
   }
 
+  if (pathname === '/dump') {
+    const dbFile = await Deno.open('./entries.sqlite', { read: true })
+    const dbFileInfo = await dbFile.stat()
+    const headers = {
+      'Content-Disposition': `attachment; filename="${dbFileInfo.mtime.getTime()}-entries.sqlite"`,
+      'Content-Type': 'application/octet-stream',
+      'Content-Length': String(dbFileInfo.size),
+    }
+
+    return new Response(dbFile.readable, { status: 200, headers })
+  }
+
   return _404
 }
 
