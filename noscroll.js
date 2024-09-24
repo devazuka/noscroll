@@ -537,11 +537,8 @@ const makeElement = entry => {
         }
       } catch {}
       if (videoid) {
-        const yt = document.createElement('lite-youtube')
-        yt.videoid = videoid
-        yt.style.backgroundImage = `url('https://i.ytimg.com/vi/${videoid}/hqdefault.jpg')`
-        content.parentElement.append(yt)
-        content.remove()
+        content.src =  `https://i3.ytimg.com/vi/${videoid}/maxresdefault.jpg`
+        description && (content.title = decodeHTMLEntities(description))
       } else if (entry.image) {
         content.src = decodeHTMLEntities(entry.image)
         description && (content.title = decodeHTMLEntities(description))
@@ -711,7 +708,6 @@ for (const video of document.querySelectorAll('video[data-hls]')) {
 }
 
 </script>
-<script type="module" src="https://cdn.jsdelivr.net/npm/@justinribeiro/lite-youtube@1.5.0"></script>
 </html>`
 
 const updateMeta = exec(`UPDATE entry SET content = ?, image = ? WHERE id = ?`)
