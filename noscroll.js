@@ -459,6 +459,7 @@ const decodeHTMLEntities = input => {
   return parser.parseFromString(input, "text/html").documentElement.textContent
 }
 
+let tweeterLoaded
 const makeElement = entry => {
   const li = templates[entry.type].cloneNode(true)
   const [content] = li.getElementsByClassName('content')
@@ -529,16 +530,38 @@ const makeElement = entry => {
       break
     } case 'link': {
       const [url, name, description] = entry.content.split('\n')
-      let videoid
+      let videoid, tweetid
       try {
-        const { host, searchParams } = new URL(url)
+        const { host, pathname, searchParams } = new URL(url)
         if (host === 'www.youtube.com' || host === 'youtu.be') {
           videoid = searchParams.get('v')
+        }
+        if (host === 'twitter.com' || host === 'x.com') {
+          tweetid = pathname.split('/status/')[1]
+          if (!tweeterLoaded) {
+            tweeterLoaded = true
+            const s = document.createElement('script')
+            s.async = true
+            s.src = 'https://platform.twitter.com/widgets.js'
+            s.charset = 'utf-8'
+            document.body.append(s)
+          }
         }
       } catch {}
       if (videoid) {
         content.src =  `https://i3.ytimg.com/vi/${videoid}/maxresdefault.jpg`
         description && (content.title = decodeHTMLEntities(description))
+      } else if (tweetid) {
+        const blockquote = document.createElement('blockquote')
+        const a = document.createElement('a')
+        a.href = url
+        blockquote.className = 'twitter-tweet'
+        blockquote.dataset.dnt = 'true'
+        blockquote.dataset.lang = 'en'
+        blockquote.dataset.theme = 'dark'
+        blockquote.append(a)
+        content.parentElement.append(blockquote)
+        content.remove()
       } else if (entry.image) {
         content.src = decodeHTMLEntities(entry.image)
         description && (content.title = decodeHTMLEntities(description))
