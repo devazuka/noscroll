@@ -577,7 +577,7 @@ img {
 <template id="link">
   <li>
     <h2><span class="score">0</span> <a class="link" href="">🔗</a> <a class="title" href=""> </a></h2>
-    <div><img class="content" src="#" onerror="console.log"></div>
+    <div><img class="content" onerror="console.log"></div>
   <li>
 </template>
 <template id="text">
@@ -588,19 +588,19 @@ img {
 <template id="image">
   <li>
     <h2><span class="score">0</span> <a class="link" href="">🔗</a> <span class="title"> </span></h2>
-    <img class="content" src="#" onerror="console.log">
+    <img class="content" onerror="console.log">
   <li>
 </template>
 <template id="gallery">
   <li>
     <h2><span class="score">0</span> <a class="link" href="">🔗</a> <span class="title"> </span></h2>
-    <div class="content" src="#" onerror="console.log">
+    <div class="content"></div>
   <li>
 </template>
 <template id="video">
   <li>
     <h2><span class="score">0</span> <a class="link" href="">🔗</a> <span class="title"> </span></h2>
-    <video class="content" controls reload="none" src="#">
+    <video class="content" controls reload="none">
   <li>
 </template>
 <ul></ul>
