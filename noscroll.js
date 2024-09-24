@@ -242,7 +242,9 @@ const getContentAndType = data => {
   const ext = url.pathname.split('.').at(-1)
   if (imageExt.has(ext)) return { type: 'image', content }
   if (videoExt.has(ext)) return { type: 'video', content }
-  if (url.hostname === 'www.reddit.com') return { type: 'text', content }
+  if (url.hostname === 'www.reddit.com') {
+    return { type: 'text', content: data.selftext || content }
+  }
   return { type: 'link', content }
 }
 
@@ -478,6 +480,24 @@ const makeElement = entry => {
   li.className = entry.source.toLowerCase()
   li.id = entry.id
   switch (entry.type) {
+    case 'text': {
+      if (/^https?:\/\//.test(entry.content)) {
+        // fetch text that wasn't properly saved before
+        // TODO: update in db instead of doing this client side
+        fetch(`/${entry.id}/debug`)
+          .then(r => r.json())
+          .then(({ selftext }) => selftext.length > 1
+            ? content.append(selftext.trim())
+            : Promise.reject(Error('missing selftext'))
+          )
+          .catch(() => content.remove())
+      } else if (entry.content?.length > 1) {
+        content.append(entry.content.trim())
+      } else {
+        content.remove()
+      }
+      break
+    }
     case 'video': {
       const url = new URL(entry.content)
       if (url.pathname.endsWith('.m3u8')) {
@@ -598,6 +618,11 @@ img {
 .link-description {
   padding: 1em;
 }
+div.content.text {
+  padding: 1em;
+  white-space: pre-wrap;
+  text-wrap: pretty;
+}
 </style>
 </head>
 <body>
@@ -610,6 +635,7 @@ img {
 <template id="text">
   <li>
     <h2><span class="score">0</span> <a class="link" href="">🔗</a> <span class="title"> </span></h2>
+    <div class="content text"></div>
   <li>
 </template>
 <template id="image">
