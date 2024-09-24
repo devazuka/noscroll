@@ -406,7 +406,6 @@ const HTMLInit = {
   headers: new Headers({
     'Content-Type': 'text/html',
     'Cache-Control': 'max-age=31536000, immutable',
-    'Content-Security-Policy': `default-src 'self'; script-src 'self' https://platform.twitter.com; frame-src https://twitter.com https://platform.twitter.com https://*.twimg.com`,
   }),
 }
 const JSONInit = {
