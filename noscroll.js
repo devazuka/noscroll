@@ -226,7 +226,10 @@ const getContentAndType = data => {
   if (data.gallery_data?.items?.length > 1) {
     return {
       type: 'gallery',
-      content: data.gallery_data.items.map(({ media_id }) => data.media_metadata[media_id].s.u).join('\n'),
+      content: data.gallery_data.items.map(({ media_id }) => {
+        const media = data.media_metadata[media_id]
+        return media.s?.u || Object.values(media).find(s => s.u)?.u
+      }).join('\n'),
     }
   }
 
