@@ -1,3 +1,3 @@
 #!/bin/sh
 
-/root/.deno/bin/deno run --unstable-fs -A noscroll.js
+/root/.deno/bin/deno run -A noscroll.js

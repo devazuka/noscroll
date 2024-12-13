@@ -1,5 +1,5 @@
-import { DB as Database } from "https://deno.land/x/sqlite/mod.ts"
-// TODO: switch to -> import { Database } from "https://deno.land/x/sqlite3@0.10.0/mod.ts"
+import { DB as Database } from "https://deno.land/x/sqlite@v3.9.1/mod.ts"
+// TODO: switch to -> import { Database } from "jsr:@db/sqlite@0.11"
 
 const S = 1000
 const M = 60*S
@@ -140,8 +140,9 @@ const fetchMeta = async url => {
         if (!(await isValidImageUrl(imageUrl))) {
           imageUrl = new URL(`${imageUrl.pathname}${imageUrl.search}${imageUrl.hash}`, res.url)
           if (!(await isValidImageUrl(imageUrl))) {
-            console.log('invalid meta image url:', imageUrl.href)
-            throw Error('failed to find valid image')
+            log('ERROR: invalid meta image url:', imageUrl.href)
+            // TODO: check if we need to decode URI components here
+            return {}
           }
         }
         meta.image = imageUrl.href
@@ -292,6 +293,7 @@ await updateRedditToken()
 
 const fetchReddit = async ({ sub, threshold }) => {
   let after = ''
+  let inserted = 0
   main: while (true) {
     // - fetch top post of the day
     const params = new URLSearchParams({
@@ -304,7 +306,7 @@ const fetchReddit = async ({ sub, threshold }) => {
       //sr_detail, // (optional) expand subreddits ?
     })
 
-    console.log(sub, 'after', after)
+    log(sub, 'after', after)
     const headers = {
       Authorization: redditAuth,
       'User-Agent': 'deno:_YkJcDPK6Wa3plOM0cH49w:v2024.01.25 (by /u/kigiri)',
@@ -326,6 +328,7 @@ const fetchReddit = async ({ sub, threshold }) => {
         content = [meta.url, (meta.title || '').replaceAll('\n', ' '), (meta.description || '')].join('\n')
         meta.image && (image = meta.image)
       }
+      inserted++
       insertEntry([
         id,               // id
         data.title,       // title
@@ -339,11 +342,13 @@ const fetchReddit = async ({ sub, threshold }) => {
       insertRaw([id, JSON.stringify(data)])
     }
   }
+  return inserted
 }
 
 const fetchHN = async ({ threshold }) => {
   const params = new URLSearchParams({ numericFilters: `points>=${threshold}`, hitsPerPage: '500' })
   const res = await fetch(`https://hn.algolia.com/api/v1/search_by_date?${params}`)
+  let inserted = 0
   for (const data of (await res.json()).hits) {
     const id = `hn:${data.objectID}`
     if (getById([id])) {
@@ -354,6 +359,7 @@ const fetchHN = async ({ threshold }) => {
     const meta = await fetchMeta(data.url || `https://news.ycombinator.com/item?id=${data.objectID}`)
     const content = [meta.url, (meta.title || '').replaceAll('\n', ' '), (meta.description || '')].join('\n')
     const image = meta.image || ''
+    inserted++
     insertEntry([
       id,                // id
       data.title,        // title
@@ -365,6 +371,7 @@ const fetchHN = async ({ threshold }) => {
       data.created_at_i, // at
     ])
   }
+  return inserted
 }
 
 const sources = {
@@ -376,21 +383,40 @@ const sources = {
   hackernews:           { interval:  2*H, threshold:    250 },
 }
 
+const log = (...args) => {
+  const at = new Date()
+  const fmtAt = `[${String(at.getHours()).padStart(2, 0)}:${String(at.getMinutes()).padStart(2, 0)}:${String(at.getSeconds()).padStart(2, 0)}]`
+  console.log(fmtAt, ...args)
+}
+
+const scheduleSync = (fn, time, type) => {
+  const at = new Date(Date.now()+time)
+  const fmtAt = `${String(at.getHours()).padStart(2, 0)}:${String(at.getMinutes()).padStart(2, 0)}`
+  log('sync-scheduled', 'at', fmtAt, 'for', type)
+  setTimeout(fn, time)
+}
+
 let initialUpdates = Promise.resolve()
 for (const [type, source] of Object.entries(sources)) {
   const { interval, threshold } = source
   const update = async () => {
     localStorage[type] = (source.lastUpdate = Date.now())
+    let inserted = -1
+    const start = Date.now()
     try {
+      log('sync-start', type)
       if (type.startsWith('/r/')) {
-        await fetchReddit({ sub: type, threshold })
+        inserted = await fetchReddit({ sub: type, threshold })
       } else if (type === 'hackernews') {
-        await fetchHN({ threshold })
+        inserted = await fetchHN({ threshold })
       }
+      const elapsed = ((Date.now() - start) / 1000).toFixed(1) + 's'
+      log('sync-done', type, { inserted, elapsed })
     } catch (err) {
-      console.error('handler failed', { interval, type, threshold }, err)
+      const elapsed = ((Date.now() - start) / 1000).toFixed(1) + 's'
+      log('ERROR: handler failed', { interval, type, threshold, elapsed }, err)
     } finally {
-      setTimeout(update, interval)
+      scheduleSync(update, interval, type)
     }
   }
 
@@ -399,7 +425,7 @@ for (const [type, source] of Object.entries(sources)) {
     const diff = interval - (Date.now() - source.lastUpdate)
     diff < 0
       ? (initialUpdates = initialUpdates.then(update))
-      : setTimeout(update, interval * Math.random())
+      : scheduleSync(update, interval * Math.random(), type)
   } else {
     initialUpdates = initialUpdates.then(update)
   }
@@ -792,16 +818,16 @@ const handleRequest = async pathname => {
 Deno.serve({
   port: Deno.env.get('PORT'),
   onListen({ port, hostname }) {
-    console.log(`Server started at http://${hostname || 'localhost'}:${port}`)
+    log(`Server started at http://${hostname || 'localhost'}:${port}`)
   },
-  handler(request) {
+  async handler(request) {
     try {
       if (request.method !== 'GET') return _404
       const { pathname } = new URL(request.url)
-      console.log('GET', pathname)
-      return handleRequest(pathname)
+      log('GET', pathname)
+      return await handleRequest(pathname)
     } catch (err) {
-      console.error(err)
+      log('ERROR: request failed', err)
       return _500
     }
   }
@@ -835,6 +861,7 @@ Deno.serve({
 // - Dump into meili and add a search bar
 // - Image descriptions with AI
 // - Video descriptions with AI
+// - Basic search
 // - Vector search
 // - Youtube Support
 // - TikTok Support
