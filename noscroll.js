@@ -131,7 +131,7 @@ const isValidImageUrl = async imageUrl => {
 const fetchMeta = async url => {
   if (!url) return {}
   try {
-    const res = await fetch(url)
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
     const text = await res.text()
     const meta = parseHTMLTags(text, res.url)
     if (meta.image) {
@@ -276,6 +276,7 @@ let redditAuth
 const updateRedditToken = async () => {
   const res = await fetch('https://www.reddit.com/api/v1/access_token', {
     method: 'POST',
+    signal: AbortSignal.timeout(10000),
     headers: {
       Authorization: `Basic ${Deno.env.get('REDDIT_BOT')}=`,
       'User-Agent': 'deno:_YkJcDPK6Wa3plOM0cH49w:v2024.01.25 (by /u/kigiri)',
@@ -311,7 +312,10 @@ const fetchReddit = async ({ sub, threshold }) => {
       Authorization: redditAuth,
       'User-Agent': 'deno:_YkJcDPK6Wa3plOM0cH49w:v2024.01.25 (by /u/kigiri)',
     }
-    const res = await fetch(`https://oauth.reddit.com${sub}/top?${params}`, { headers })
+    const res = await fetch(`https://oauth.reddit.com${sub}/top?${params}`, {
+      headers,
+      signal: AbortSignal.timeout(10000),
+    })
     const result = await res.json()
     after = result.data.after
     for (const { data } of result.data.children) {
@@ -347,7 +351,9 @@ const fetchReddit = async ({ sub, threshold }) => {
 
 const fetchHN = async ({ threshold }) => {
   const params = new URLSearchParams({ numericFilters: `points>=${threshold}`, hitsPerPage: '500' })
-  const res = await fetch(`https://hn.algolia.com/api/v1/search_by_date?${params}`)
+  const res = await fetch(`https://hn.algolia.com/api/v1/search_by_date?${params}`, {
+    signal: AbortSignal.timeout(10000),
+  })
   let inserted = 0
   for (const data of (await res.json()).hits) {
     const id = `hn:${data.objectID}`
