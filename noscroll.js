@@ -754,12 +754,12 @@ if (reloadNavigation) {
 ${JS}</script>
 </body>
 <script type="module">
-import Hls from 'https://cdn.jsdelivr.net/npm/hls.js@v1.5.15/+esm'
+import Hls from 'https://cdn.jsdelivr.net/npm/hls.js@v1.6.2/+esm'
 
 for (const video of document.querySelectorAll('video[data-hls]')) {
   if (video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = video.dataset.hls
-  } else if (Hls.isSupported()) {
+  } else {
     const hls = new Hls()
     const url = new URL(video.dataset.hls)
 
