@@ -757,17 +757,11 @@ ${JS}</script>
 import Hls from 'https://cdn.jsdelivr.net/npm/hls.js@v1.6.2/+esm'
 
 for (const video of document.querySelectorAll('video[data-hls]')) {
-  if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    video.src = video.dataset.hls
-  } else {
-    const hls = new Hls()
-    const url = new URL(video.dataset.hls)
+  const hls = new Hls()
+  const url = new URL(video.dataset.hls)
 
-    hls.loadSource(video.dataset.hls)
-    hls.attachMedia(video)
-  } else {
-    // TODO: handle unable to play media
-  }
+  hls.loadSource(video.dataset.hls)
+  hls.attachMedia(video)
 }
 
 </script>
