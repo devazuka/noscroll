@@ -679,7 +679,7 @@ li {
 }
 body { padding-bottom: 50px }
 video {
-  max-height: 840px;
+  max-height: calc(100vh - 50px);
 }
 img {
   max-width: 100%;
